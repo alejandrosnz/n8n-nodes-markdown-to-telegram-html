@@ -8,7 +8,7 @@ import { NodeOperationError } from 'n8n-workflow';
 import { markdownToTelegramHtml } from '../../src/lib/markdownToTelegramHtml';
 import { safeTruncateHtml, splitHtmlIntoChunks } from '../../src/lib/htmlUtils';
 
-export class MarkdownToTelegramHTML implements INodeType {
+export class MarkdownToTelegramHtml implements INodeType {
 	description: INodeTypeDescription = {
 		displayName: 'Markdown to Telegram-HTML',
 		name: 'markdownToTelegramHtml',

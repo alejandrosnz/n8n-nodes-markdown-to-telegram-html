@@ -38,7 +38,7 @@
         "n8nNodesApiVersion": 1,
         "credentials": [],
         "nodes": [
-            "dist/nodes/MarkdownToTelegramHTML/MarkdownToTelegramHTML.node.js"
+            "dist/nodes/MarkdownToTelegramHtml/MarkdownToTelegramHtml.node.js"
         ]
     },
     "devDependencies": {
