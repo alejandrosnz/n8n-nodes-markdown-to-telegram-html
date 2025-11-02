@@ -40,6 +40,14 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
+          ref: ${{ github.event.inputs.branch }}
+
+      # Sync with latest changes
+      - name: Pull latest changes
+        run: |
+          git pull origin ${{ github.event.inputs.branch }} --rebase
+          CURRENT_VERSION=$(node -p 'require("./package.json").version')
+          echo "📦 Current version: $CURRENT_VERSION"
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -53,185 +61,164 @@ jobs:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           if [ -z "$NPM_TOKEN" ]; then
-            echo "Error: NPM_TOKEN secret is not set"
+            echo "❌ Error: NPM_TOKEN secret is not set"
             exit 1
           fi
-          # Write token to .npmrc for publish
           printf "//registry.npmjs.org/:_authToken=%s\n" "$NPM_TOKEN" > ~/.npmrc
-          # Optional: ensure npm uses the registry for this session
-          npm config set registry https://registry.npmjs.org/
 
       - name: Install dependencies
         run: |
           if [ -f "package-lock.json" ]; then
-            echo "package-lock.json found, running npm ci"
             npm ci
           else
-            echo "No package-lock.json found, running npm install"
             npm install
           fi
 
-      - name: Build (if you have a build step)
+      - name: Build
         run: |
           if npm run | grep -q "build"; then
-            echo "Build script found, running build"
+            echo "🔨 Running build..."
             npm run build
           else
-            echo "No build script found, skipping build"
+            echo "No build script found"
           fi
-        continue-on-error: false
 
-      - name: Configure git for version bump
+      - name: Configure git
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Validate version input (if provided)
-        if: ${{ github.event.inputs.version != '' }}
-        run: |
-          INPUT_VERSION="${{ github.event.inputs.version }}"
-          # Validate semver format (basic validation)
-          if ! echo "$INPUT_VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.-]+)?(\+[a-zA-Z0-9.-]+)?$'; then
-            echo "Error: Invalid version format '$INPUT_VERSION'. Expected semver format (e.g., 1.2.3)"
-            exit 1
-          fi
-          echo "Version format is valid: $INPUT_VERSION"
-
-      - name: Bump version (without git tag)
+      - name: Bump version in package.json
         id: version
-        shell: bash
         run: |
-          set -euo pipefail
-
-          # Read inputs
           INPUT_VERSION="${{ github.event.inputs.version }}"
           RELEASE_TYPE="${{ github.event.inputs.release_type }}"
           DRY_RUN="${{ github.event.inputs.dry_run }}"
-
-          if [ "$DRY_RUN" = "true" ]; then
-            echo "🧪 DRY RUN MODE - No changes will be committed"
-          fi
-
-          # Always use --no-git-tag-version to let n8n-node release handle git operations
+          
+          CURRENT=$(node -p 'require("./package.json").version')
+          echo "Current version: $CURRENT"
+          
           if [ -n "$INPUT_VERSION" ]; then
-            echo "Using explicit version: $INPUT_VERSION"
-            CURRENT=$(node -p 'require("./package.json").version')
-            echo "Current package.json version: $CURRENT"
+            # Validar formato semver
+            if ! echo "$INPUT_VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.-]+)?(\+[a-zA-Z0-9.-]+)?$'; then
+              echo "❌ Invalid version format: $INPUT_VERSION"
+              exit 1
+            fi
             
-            if [ "$INPUT_VERSION" != "$CURRENT" ]; then
-              echo "Updating package.json to version $INPUT_VERSION"
-              npm version "$INPUT_VERSION" --no-git-tag-version
+            if [ "$INPUT_VERSION" = "$CURRENT" ]; then
+              echo "⚠️ Warning: Version $INPUT_VERSION is the same as current version"
+              echo "No version bump needed"
+              NEW_VERSION="$CURRENT"
             else
-              echo "Version unchanged ($CURRENT)"
+              echo "Setting explicit version: $INPUT_VERSION"
+              npm version "$INPUT_VERSION" --no-git-tag-version
+              NEW_VERSION="$INPUT_VERSION"
             fi
           else
             echo "Bumping $RELEASE_TYPE version"
-            npm version "$RELEASE_TYPE" --no-git-tag-version
+            NEW_VERSION=$(npm version "$RELEASE_TYPE" --no-git-tag-version | sed 's/v//')
           fi
-
-          # Export the current package.json version for following steps
-          VERSION_CURRENT=$(node -p 'require("./package.json").version')
-          echo "VERSION=$VERSION_CURRENT" >> $GITHUB_OUTPUT
-          echo "New version: $VERSION_CURRENT"
           
-          # Commit the version change (without tag)
-          if [ "$DRY_RUN" != "true" ]; then
-            git add package.json package-lock.json 2>/dev/null || git add package.json
-            git commit -m "chore(release): $VERSION_CURRENT"
-            echo "✅ Version committed (tag will be created by npm run release)"
+          echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "📦 New version: $NEW_VERSION"
+          
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "🧪 DRY RUN - Reverting version changes"
+            git checkout -- package.json package-lock.json 2>/dev/null || git checkout -- package.json
           fi
 
-      - name: Test publish (dry-run validation)
+      - name: Dry-run validation
         if: ${{ github.event.inputs.dry_run == 'true' }}
         run: |
-          echo "🧪 Testing package validity (dry-run)..."
+          echo "🧪 DRY RUN MODE - Testing release process..."
           
-          # Validate package.json
-          echo "Validating package.json..."
-          node -e "const pkg = require('./package.json'); if (!pkg.name || !pkg.version) { console.error('Invalid package.json'); process.exit(1); }"
+          # Aplicar versión temporalmente
+          npm version ${{ steps.version.outputs.NEW_VERSION }} --no-git-tag-version
           
-          # Check if n8n-node command exists and run prerelease check
-          if command -v n8n-node &> /dev/null; then
-            echo "Running n8n-node prerelease validation..."
-            n8n-node prerelease || {
-              echo "⚠️ n8n-node prerelease check failed (expected in dry-run)"
-              echo "This is normal - the actual 'npm run release' command will handle this"
-            }
+          # Validar package.json
+          node -e "const pkg = require('./package.json'); if (!pkg.name || !pkg.version) { throw new Error('Invalid package.json'); }"
+          
+          # Test prerelease checks
+          if npm run | grep -q "prepublishOnly"; then
+            echo "Running prepublishOnly checks..."
+            npm run prepublishOnly || echo "⚠️ Prerelease checks failed (may be expected in dry-run)"
           fi
           
-          # Test that build artifacts exist
-          if [ -d "dist" ] || [ -d "build" ]; then
-            echo "✅ Build artifacts found"
-          else
-            echo "⚠️ No dist/build folder found - ensure build step completed"
-          fi
-          
-          # Verify package can be packed
-          echo "Testing package tarball creation..."
+          # Test pack
+          echo "Testing npm pack..."
           npm pack --dry-run
           
-          echo ""
-          echo "✅ Dry-run validation completed!"
-          echo "Note: Actual publish will use 'npm run release' which includes n8n-specific checks"
+          echo "✅ Dry-run validation passed!"
+          echo "📦 Would publish version: ${{ steps.version.outputs.NEW_VERSION }}"
 
-      - name: Publish to npm
+      - name: Commit version bump
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        run: |
+          # Verificar si hay cambios en package.json
+          if git diff --exit-code package.json package-lock.json 2>/dev/null || git diff --exit-code package.json; then
+            echo "⚠️ No version changes detected, skipping commit"
+          else
+            VERSION="${{ steps.version.outputs.NEW_VERSION }}"
+            git add package.json package-lock.json 2>/dev/null || git add package.json
+            git commit -m "chore(release): bump version to $VERSION"
+            echo "✅ Version bump committed"
+          fi
+
+      - name: Run n8n release
         if: ${{ github.event.inputs.dry_run != 'true' }}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          echo "Publishing to npm using n8n release command..."
-          # n8n-node release will handle:
-          # - Creating the git tag
-          # - Pushing to npm
-          # - Running all prerelease checks
+          VERSION="${{ steps.version.outputs.NEW_VERSION }}"
+          echo "🚀 Publishing version $VERSION to npm..."
+          
+          # n8n-node release hace:
+          # - Crea git tag basado en la versión actual del package.json
+          # - Publica a npm
           npm run release
-          echo "✅ Package published successfully to npm!"
+          
+          echo "✅ Package published to npm!"
 
-      - name: Push commit and tags
+      - name: Push changes to repository
         if: ${{ github.event.inputs.dry_run != 'true' }}
-        env:
-          BRANCH: ${{ github.event.inputs.branch }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Configure git remote with authentication
-          git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git
+          BRANCH="${{ github.event.inputs.branch }}"
           
-          # n8n-node release already created the tag, now push everything
-          echo "Pushing version commit to branch: ${BRANCH}"
-          git push origin HEAD:"${BRANCH}"
+          # Configurar remote con token
+          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
           
-          echo "Pushing tags created by n8n-node release"
-          git push --tags
-          echo "✅ Changes pushed to repository!"
+          # Push commit y tags
+          echo "Pushing changes to $BRANCH..."
+          git push origin HEAD:$BRANCH --follow-tags
+          
+          echo "✅ Changes pushed successfully!"
 
-      - name: Cleanup .npmrc
+      - name: Cleanup
+        if: always()
+        run: rm -f ~/.npmrc || true
+
+      - name: Summary
         if: always()
         run: |
-          rm -f ~/.npmrc || true
-
-      - name: Dry-run Summary
-        if: ${{ github.event.inputs.dry_run == 'true' }}
-        run: |
-          VERSION="${{ steps.version.outputs.VERSION }}"
-          echo "# 🧪 Dry Run Complete" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "✅ All checks passed! The following would happen in a real release:" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- **Version**: ${VERSION}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Branch**: ${{ github.event.inputs.branch }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Repository**: ${{ github.repository }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "⚠️ **No changes were committed or published**" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "To perform the actual release, run this workflow again with dry_run disabled." >> $GITHUB_STEP_SUMMARY
-
-      - name: Release Summary
-        if: ${{ success() && github.event.inputs.dry_run != 'true' }}
-        run: |
-          VERSION="${{ steps.version.outputs.VERSION }}"
-          echo "# ✅ Release v${VERSION} Published Successfully!" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- **Version**: ${VERSION}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Branch**: ${{ github.event.inputs.branch }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Repository**: ${{ github.repository }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **npm package**: https://www.npmjs.com/package/$(node -p 'require(\"./package.json\").name')/v/${VERSION}" >> $GITHUB_STEP_SUMMARY
+          VERSION="${{ steps.version.outputs.NEW_VERSION }}"
+          DRY_RUN="${{ github.event.inputs.dry_run }}"
+          
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "# 🧪 Dry Run Complete" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "✅ All checks passed!" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Would release version:** $VERSION" >> $GITHUB_STEP_SUMMARY
+            echo "**Current version:** $(node -p 'require("./package.json").version')" >> $GITHUB_STEP_SUMMARY
+            echo "**Branch:** ${{ github.event.inputs.branch }}" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "⚠️ No changes were made" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ job.status }}" = "success" ]; then
+            PACKAGE_NAME=$(node -p 'require("./package.json").name')
+            echo "# ✅ Release v${VERSION} Published!" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Version:** $VERSION" >> $GITHUB_STEP_SUMMARY
+            echo "**Branch:** ${{ github.event.inputs.branch }}" >> $GITHUB_STEP_SUMMARY
+            echo "**npm:** https://www.npmjs.com/package/${PACKAGE_NAME}/v/${VERSION}" >> $GITHUB_STEP_SUMMARY
+            echo "**Repository:** https://github.com/${{ github.repository }}/releases/tag/v${VERSION}" >> $GITHUB_STEP_SUMMARY
+          fi
