@@ -1,0 +1,103 @@
+name: Release — publish to npm (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_type:
+        description: 'Choose release type (patch, minor, major). If you provide "version" that one will be used instead.'
+        required: false
+        default: 'patch'
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+      version:
+        description: 'Optional explicit version (e.g. 1.2.3). If set, this exact version will be used.'
+        required: false
+        type: string
+      branch:
+        description: 'Branch to push the version bump to (master/main).'
+        required: false
+        default: 'master'
+        type: string
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org/
+
+      - name: Configure npm auth
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -z "$NPM_TOKEN" ]; then
+            echo "Error: NPM_TOKEN secret is not set"; exit 1
+          fi
+          # Write token to .npmrc for publish
+          printf "//registry.npmjs.org/:_authToken=%s\n" "$NPM_TOKEN" > ~/.npmrc
+          # Optional: ensure npm uses the registry for this session
+          npm config set registry https://registry.npmjs.org/
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build (if you have a build step)
+        run: |
+          if npm run | grep -q "build"; then
+            npm run build
+          else
+            echo "No build script found, skipping build"
+          fi
+
+      - name: Configure git for pushing tags
+        env:
+          GITHUB_ACTOR: github-actions
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Bump version / create tag
+        id: version
+        run: |
+          # Decide whether to use explicit version or semantic bump
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            echo "Using explicit version: ${{ github.event.inputs.version }}"
+            npm version "${{ github.event.inputs.version }}" -m "chore(release): %s"
+          else
+            echo "Bumping version: ${{ github.event.inputs.release_type }}"
+            npm version "${{ github.event.inputs.release_type }}" -m "chore(release): %s"
+          fi
+          echo "VERSION=$(node -p \"require('./package.json').version\")" >> $GITHUB_OUTPUT
+
+      - name: Push commit and tags
+        env:
+          BRANCH: ${{ github.event.inputs.branch }}
+        run: |
+          # Push the new commit and tags back to repo
+          git push origin HEAD:"${BRANCH}"
+          git push --tags
+
+      - name: Publish to npm
+        run: |
+          # Para paquetes scoped (ej. @miorg/n8n-nodes-mi), npm publish requiere --access public
+          # Si tu paquete NO es scoped, --access public no hace daño.
+          npm publish --access public
+
+      - name: Cleanup .npmrc
+        run: |
+          rm -f ~/.npmrc || true
