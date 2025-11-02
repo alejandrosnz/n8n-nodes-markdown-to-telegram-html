@@ -21,6 +21,11 @@ on:
         required: false
         default: 'master'
         type: string
+      dry_run:
+        description: 'Dry run mode: test the release without publishing or pushing'
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -43,6 +48,7 @@ jobs:
           registry-url: https://registry.npmjs.org/
 
       - name: Configure npm auth
+        if: ${{ github.event.inputs.dry_run != 'true' }}
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
@@ -75,7 +81,7 @@ jobs:
           fi
         continue-on-error: false
 
-      - name: Configure git for pushing tags
+      - name: Configure git for version bump
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -91,7 +97,7 @@ jobs:
           fi
           echo "Version format is valid: $INPUT_VERSION"
 
-      - name: Bump version / create tag
+      - name: Bump version / create tag (locally)
         id: version
         shell: bash
         run: |
@@ -100,29 +106,68 @@ jobs:
           # Read inputs
           INPUT_VERSION="${{ github.event.inputs.version }}"
           RELEASE_TYPE="${{ github.event.inputs.release_type }}"
+          DRY_RUN="${{ github.event.inputs.dry_run }}"
+
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "🧪 DRY RUN MODE - No changes will be committed"
+          fi
 
           if [ -n "$INPUT_VERSION" ]; then
             echo "Using explicit version: $INPUT_VERSION"
             CURRENT=$(node -p 'require("./package.json").version')
             echo "Current package.json version: $CURRENT"
             if [ "$INPUT_VERSION" = "$CURRENT" ]; then
-              echo "Version unchanged ($CURRENT). Creating tag only."
-              git tag "v$CURRENT"
+              echo "Version unchanged ($CURRENT). Will create tag only."
+              if [ "$DRY_RUN" != "true" ]; then
+                git tag "v$CURRENT"
+              fi
             else
-              npm version "$INPUT_VERSION" -m "chore(release): %s"
+              if [ "$DRY_RUN" = "true" ]; then
+                echo "Would run: npm version $INPUT_VERSION -m 'chore(release): %s' --no-git-tag-version"
+                npm version "$INPUT_VERSION" --no-git-tag-version
+              else
+                npm version "$INPUT_VERSION" -m "chore(release): %s"
+              fi
             fi
           else
             echo "No explicit version provided, bumping $RELEASE_TYPE"
-            npm version "$RELEASE_TYPE" -m "chore(release): %s"
+            if [ "$DRY_RUN" = "true" ]; then
+              echo "Would run: npm version $RELEASE_TYPE -m 'chore(release): %s' --no-git-tag-version"
+              npm version "$RELEASE_TYPE" --no-git-tag-version
+            else
+              npm version "$RELEASE_TYPE" -m "chore(release): %s"
+            fi
           fi
 
           # Export the current package.json version for following steps
-          # Use single-quoted node -p to avoid nested-quote problems
           VERSION_CURRENT=$(node -p 'require("./package.json").version')
           echo "VERSION=$VERSION_CURRENT" >> $GITHUB_OUTPUT
           echo "New version: $VERSION_CURRENT"
 
+      - name: Test publish (dry-run validation)
+        if: ${{ github.event.inputs.dry_run == 'true' }}
+        run: |
+          echo "🧪 Testing npm publish (dry-run)..."
+          if npm run | grep -q "release"; then
+            echo "Note: Using 'npm run release' - ensure it supports dry-run or test manually"
+            echo "Alternatively, testing with: npm publish --dry-run"
+            npm publish --dry-run
+          else
+            npm publish --dry-run
+          fi
+          echo "✅ Dry-run validation passed!"
+
+      - name: Publish to npm
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          echo "Publishing to npm using n8n release command..."
+          npm run release
+          echo "✅ Package published successfully to npm!"
+
       - name: Push commit and tags
+        if: ${{ github.event.inputs.dry_run != 'true' }}
         env:
           BRANCH: ${{ github.event.inputs.branch }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -136,26 +181,36 @@ jobs:
           
           echo "Pushing tags"
           git push --tags
-
-      - name: Publish to npm
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          echo "Publishing to npm using n8n release command..."
-          npm run release
-          echo "Package published successfully!"
+          echo "✅ Changes pushed to repository!"
 
       - name: Cleanup .npmrc
         if: always()
         run: |
           rm -f ~/.npmrc || true
 
-      - name: Summary
-        if: success()
+      - name: Dry-run Summary
+        if: ${{ github.event.inputs.dry_run == 'true' }}
         run: |
           VERSION="${{ steps.version.outputs.VERSION }}"
-          echo "✅ Release v${VERSION} published successfully to npm!" >> $GITHUB_STEP_SUMMARY
+          echo "# 🧪 Dry Run Complete" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- Version: ${VERSION}" >> $GITHUB_STEP_SUMMARY
-          echo "- Branch: ${{ github.event.inputs.branch }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Repository: ${{ github.repository }}" >> $GITHUB_STEP_SUMMARY
+          echo "✅ All checks passed! The following would happen in a real release:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version**: ${VERSION}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch**: ${{ github.event.inputs.branch }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Repository**: ${{ github.repository }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "⚠️ **No changes were committed or published**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "To perform the actual release, run this workflow again with dry_run disabled." >> $GITHUB_STEP_SUMMARY
+
+      - name: Release Summary
+        if: ${{ success() && github.event.inputs.dry_run != 'true' }}
+        run: |
+          VERSION="${{ steps.version.outputs.VERSION }}"
+          echo "# ✅ Release v${VERSION} Published Successfully!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version**: ${VERSION}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch**: ${{ github.event.inputs.branch }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Repository**: ${{ github.repository }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **npm package**: https://www.npmjs.com/package/$(node -p 'require(\"./package.json\").name')/v/${VERSION}" >> $GITHUB_STEP_SUMMARY
