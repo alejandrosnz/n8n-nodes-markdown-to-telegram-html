@@ -141,10 +141,8 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          # For scoped packages (e.g. @myorg/n8n-nodes-my), npm publish requires --access public
-          # If your package is NOT scoped, --access public does no harm.
-          echo "Publishing to npm..."
-          npm publish --access public
+          echo "Publishing to npm using n8n release command..."
+          npm run release
           echo "Package published successfully!"
 
       - name: Cleanup .npmrc
