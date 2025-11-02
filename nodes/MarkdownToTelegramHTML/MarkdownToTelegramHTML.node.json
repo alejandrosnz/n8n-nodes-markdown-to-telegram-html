@@ -1,0 +1,14 @@
+{
+	"node": "n8n-nodes-telegram-better-markdown.MarkdownToTelegramHTML",
+	"nodeVersion": "1.0",
+	"codexVersion": "1.0",
+	"categories": ["Utility", "Data Transformation"],
+	"resources": {
+		"primaryDocumentation": [
+			{
+				"url": "https://github.com/alejandrosnz/n8n-nodes-markdown-to-telegram-html?tab=readme-ov-file"
+			}
+		]
+	},
+	"alias": ["markdown", "telegram", "html", "formatting"]
+}
