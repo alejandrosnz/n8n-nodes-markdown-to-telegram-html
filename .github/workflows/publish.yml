@@ -111,8 +111,8 @@ jobs:
           echo "Testing release process for: ${{ steps.version.outputs.NEXT_VERSION }}"
           echo ""
           
-          # Run release-it in dry-run mode
-          npm run release -- ${{ github.event.inputs.release_type }} --dry-run --ci
+          # Run release-it in dry-run mode with increment flag
+          npm run release -- --increment=${{ github.event.inputs.release_type }} --dry-run --ci
           
           echo ""
           echo "✅ Dry-run completed successfully!"
@@ -137,7 +137,7 @@ jobs:
           # 4. Git commit and tag
           # 5. npm publish
           # 6. Git push with tags
-          npm run release -- ${{ github.event.inputs.release_type }} --ci
+          npm run release -- --increment=${{ github.event.inputs.release_type }} --ci
           
           echo ""
           echo "✅ Release completed!"
