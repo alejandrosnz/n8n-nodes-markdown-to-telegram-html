@@ -11,7 +11,7 @@ import { safeTruncateHtml, splitHtmlIntoChunks } from '../../src/lib/htmlUtils';
 export class MarkdownToTelegramHTML implements INodeType {
 	description: INodeTypeDescription = {
 		displayName: 'Markdown to Telegram-HTML',
-		name: 'MarkdownToTelegramHTML',
+		name: 'markdownToTelegramHtml',
 		icon: { light: 'file:markdown-to-telegram-html.svg', dark: 'file:markdown-to-telegram-html.svg' },
 		group: ['transform'],
 		version: 1,

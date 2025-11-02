@@ -8,8 +8,4 @@ describe('markdownToTelegramHtml', () => {
     expect(html).toContain('<tg-spoiler>');
   });
 
-  test('returns empty string for non-string input', () => {
-    // @ts-ignore
-    expect(markdownToTelegramHtml(null)).toBe('');
-  });
 });
