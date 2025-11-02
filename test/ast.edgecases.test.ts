@@ -2,7 +2,7 @@ import { nodeToHtml } from '../src/lib/ast';
 
 describe('ast.edgecases', () => {
   test('blockquote becomes expandable when ends with marker || and marker removed', () => {
-    const node: any = {
+    const node = {
       type: 'blockquote',
       children: [
         { type: 'paragraph', children: [ { type: 'text', value: 'Line 1' } ] },
@@ -17,25 +17,25 @@ describe('ast.edgecases', () => {
 
   test('blockquote becomes expandable by length (>320 chars)', () => {
     const longText = 'a'.repeat(330);
-    const node: any = { type: 'blockquote', children: [ { type: 'paragraph', children: [ { type: 'text', value: longText } ] } ] };
+    const node = { type: 'blockquote', children: [ { type: 'paragraph', children: [ { type: 'text', value: longText } ] } ] };
     const html = nodeToHtml(node);
     expect(html).toContain('blockquote expandable');
   });
 
   test('inline code escapes HTML and code block includes language class', () => {
-    const inline: any = { type: 'inlineCode', value: '<&>' };
-    const block: any = { type: 'code', value: '<script>', lang: 'js' };
+    const inline = { type: 'inlineCode', value: '<&>' };
+    const block = { type: 'code', value: '<script>', lang: 'js' };
     expect(nodeToHtml(inline)).toContain('&lt;&amp;&gt;');
     expect(nodeToHtml(block)).toContain('class="language-js"');
   });
 
   test('table returns omission string', () => {
-    const t: any = { type: 'table' };
+    const t = { type: 'table' };
     expect(nodeToHtml(t)).toContain('[Table content is not supported');
   });
 
   test('ordered list respects start and nested lists indent', () => {
-    const list: any = {
+    const list = {
       type: 'list',
       ordered: true,
       start: 3,
@@ -53,7 +53,7 @@ describe('ast.edgecases', () => {
   });
 
   test('spoiler not processed inside URLs', () => {
-    const node: any = { type: 'text', value: 'http://example.com/||nope||' };
+    const node = { type: 'text', value: 'http://example.com/||nope||' };
     const html = nodeToHtml(node);
     expect(html).toContain('||nope||');
     expect(html).not.toContain('<tg-spoiler>');

@@ -4,7 +4,7 @@ import { nodeToHtml } from '../src/lib/ast';
 
 describe('ast.nodeToHtml', () => {
   test('renders bold and italic and spoilers', () => {
-    const root: any = {
+    const root = {
       type: 'root',
       children: [
         { type: 'paragraph', children: [ { type: 'text', value: 'Hello ' }, { type: 'strong', children: [ { type: 'text', value: 'World' } ] } ] },
@@ -18,7 +18,7 @@ describe('ast.nodeToHtml', () => {
   });
 
   test('renders lists with indentation and ordered markers', () => {
-    const list: any = {
+    const list = {
       type: 'list',
       ordered: false,
       children: [
@@ -33,7 +33,7 @@ describe('ast.nodeToHtml', () => {
   });
 
   test('handles tg emoji image URLs', () => {
-    const img: any = { type: 'image', url: 'tg://emoji?id=12345', alt: 'smile' };
+    const img = { type: 'image', url: 'tg://emoji?id=12345', alt: 'smile' };
     const html = nodeToHtml(img);
     expect(html).toContain('tg-emoji');
     expect(html).toContain('emoji-id="12345"');

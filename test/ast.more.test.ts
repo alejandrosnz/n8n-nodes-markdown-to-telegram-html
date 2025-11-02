@@ -7,7 +7,7 @@ describe('ast.additional coverage', () => {
   });
 
   test('getNodeText concatenates nested text nodes', () => {
-    const node: any = {
+    const node = {
       type: 'root',
       children: [
         { type: 'paragraph', children: [ { type: 'text', value: 'A' }, { type: 'text', value: 'B' } ] },
@@ -18,33 +18,33 @@ describe('ast.additional coverage', () => {
   });
 
   test('link rendering escapes url and text', () => {
-    const node: any = { type: 'link', url: 'http://x.com?a=1&b=2', children: [ { type: 'text', value: '<click>' } ] };
+    const node = { type: 'link', url: 'http://x.com?a=1&b=2', children: [ { type: 'text', value: '<click>' } ] };
     const html = nodeToHtml(node);
     expect(html).toContain('href="http://x.com?a=1&amp;b=2"');
     expect(html).toContain('&lt;click&gt;');
   });
 
   test('regular image renders bold link with escaped alt', () => {
-    const node: any = { type: 'image', url: 'http://img', alt: '<img>' };
+    const node = { type: 'image', url: 'http://img', alt: '<img>' };
     const html = nodeToHtml(node);
     expect(html).toContain('<b><a');
     expect(html).toContain('&lt;img&gt;');
   });
 
   test('emphasis and delete nodes render correctly inside paragraph', () => {
-    const node: any = { type: 'paragraph', children: [ { type: 'emphasis', children: [ { type: 'text', value: 'it' } ] }, { type: 'delete', children: [ { type: 'text', value: 'del' } ] } ] };
+    const node = { type: 'paragraph', children: [ { type: 'emphasis', children: [ { type: 'text', value: 'it' } ] }, { type: 'delete', children: [ { type: 'text', value: 'del' } ] } ] };
     const html = nodeToHtml(node);
     expect(html).toContain('<i>it</i>');
     expect(html).toContain('<s>del</s>');
   });
 
   test('thematicBreak and break nodes produce expected output', () => {
-    expect(nodeToHtml({ type: 'thematicBreak' } as any)).toBe('------\n\n');
-    expect(nodeToHtml({ type: 'break' } as any)).toBe('\n');
+    expect(nodeToHtml({ type: 'thematicBreak' })).toBe('------\n\n');
+    expect(nodeToHtml({ type: 'break' })).toBe('\n');
   });
 
   test('unknown node type falls back to rendering children', () => {
-    const node: any = { type: 'mystery', children: [ { type: 'text', value: 'X' }, { type: 'text', value: 'Y' } ] };
+    const node = { type: 'mystery', children: [ { type: 'text', value: 'X' }, { type: 'text', value: 'Y' } ] };
     expect(nodeToHtml(node)).toBe('XY');
   });
 });

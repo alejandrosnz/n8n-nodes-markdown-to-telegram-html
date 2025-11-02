@@ -9,7 +9,6 @@ describe('markdownToTelegramHtml', () => {
   });
 
   test('returns empty string for non-string input', () => {
-    // @ts-ignore
     expect(markdownToTelegramHtml(null)).toBe('');
   });
 });
