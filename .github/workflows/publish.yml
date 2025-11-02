@@ -34,6 +34,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -46,7 +47,8 @@ jobs:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           if [ -z "$NPM_TOKEN" ]; then
-            echo "Error: NPM_TOKEN secret is not set"; exit 1
+            echo "Error: NPM_TOKEN secret is not set"
+            exit 1
           fi
           # Write token to .npmrc for publish
           printf "//registry.npmjs.org/:_authToken=%s\n" "$NPM_TOKEN" > ~/.npmrc
@@ -54,50 +56,108 @@ jobs:
           npm config set registry https://registry.npmjs.org/
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          if [ -f "package-lock.json" ]; then
+            echo "package-lock.json found, running npm ci"
+            npm ci
+          else
+            echo "No package-lock.json found, running npm install"
+            npm install
+          fi
 
       - name: Build (if you have a build step)
         run: |
           if npm run | grep -q "build"; then
+            echo "Build script found, running build"
             npm run build
           else
             echo "No build script found, skipping build"
           fi
+        continue-on-error: false
 
       - name: Configure git for pushing tags
-        env:
-          GITHUB_ACTOR: github-actions
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
+      - name: Validate version input (if provided)
+        if: ${{ github.event.inputs.version != '' }}
+        run: |
+          INPUT_VERSION="${{ github.event.inputs.version }}"
+          # Validate semver format (basic validation)
+          if ! echo "$INPUT_VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.-]+)?(\+[a-zA-Z0-9.-]+)?$'; then
+            echo "Error: Invalid version format '$INPUT_VERSION'. Expected semver format (e.g., 1.2.3)"
+            exit 1
+          fi
+          echo "Version format is valid: $INPUT_VERSION"
+
       - name: Bump version / create tag
         id: version
+        shell: bash
         run: |
-          # Decide whether to use explicit version or semantic bump
-          if [ -n "${{ github.event.inputs.version }}" ]; then
-            echo "Using explicit version: ${{ github.event.inputs.version }}"
-            npm version "${{ github.event.inputs.version }}" -m "chore(release): %s"
+          set -euo pipefail
+
+          # Read inputs
+          INPUT_VERSION="${{ github.event.inputs.version }}"
+          RELEASE_TYPE="${{ github.event.inputs.release_type }}"
+
+          if [ -n "$INPUT_VERSION" ]; then
+            echo "Using explicit version: $INPUT_VERSION"
+            CURRENT=$(node -p 'require("./package.json").version')
+            echo "Current package.json version: $CURRENT"
+            if [ "$INPUT_VERSION" = "$CURRENT" ]; then
+              echo "Version unchanged ($CURRENT). Creating tag only."
+              git tag "v$CURRENT"
+            else
+              npm version "$INPUT_VERSION" -m "chore(release): %s"
+            fi
           else
-            echo "Bumping version: ${{ github.event.inputs.release_type }}"
-            npm version "${{ github.event.inputs.release_type }}" -m "chore(release): %s"
+            echo "No explicit version provided, bumping $RELEASE_TYPE"
+            npm version "$RELEASE_TYPE" -m "chore(release): %s"
           fi
-          echo "VERSION=$(node -p \"require('./package.json').version\")" >> $GITHUB_OUTPUT
+
+          # Export the current package.json version for following steps
+          # Use single-quoted node -p to avoid nested-quote problems
+          VERSION_CURRENT=$(node -p 'require("./package.json").version')
+          echo "VERSION=$VERSION_CURRENT" >> $GITHUB_OUTPUT
+          echo "New version: $VERSION_CURRENT"
 
       - name: Push commit and tags
         env:
           BRANCH: ${{ github.event.inputs.branch }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # Configure git remote with authentication
+          git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git
+          
           # Push the new commit and tags back to repo
+          echo "Pushing to branch: ${BRANCH}"
           git push origin HEAD:"${BRANCH}"
+          
+          echo "Pushing tags"
           git push --tags
 
       - name: Publish to npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          # Para paquetes scoped (ej. @miorg/n8n-nodes-mi), npm publish requiere --access public
-          # Si tu paquete NO es scoped, --access public no hace daño.
+          # For scoped packages (e.g. @myorg/n8n-nodes-my), npm publish requires --access public
+          # If your package is NOT scoped, --access public does no harm.
+          echo "Publishing to npm..."
           npm publish --access public
+          echo "Package published successfully!"
 
       - name: Cleanup .npmrc
+        if: always()
         run: |
           rm -f ~/.npmrc || true
+
+      - name: Summary
+        if: success()
+        run: |
+          VERSION="${{ steps.version.outputs.VERSION }}"
+          echo "✅ Release v${VERSION} published successfully to npm!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Version: ${VERSION}" >> $GITHUB_STEP_SUMMARY
+          echo "- Branch: ${{ github.event.inputs.branch }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Repository: ${{ github.repository }}" >> $GITHUB_STEP_SUMMARY
