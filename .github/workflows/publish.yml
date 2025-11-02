@@ -97,7 +97,7 @@ jobs:
           fi
           echo "Version format is valid: $INPUT_VERSION"
 
-      - name: Bump version / create tag (locally)
+      - name: Bump version (without git tag)
         id: version
         shell: bash
         run: |
@@ -112,37 +112,34 @@ jobs:
             echo "🧪 DRY RUN MODE - No changes will be committed"
           fi
 
+          # Always use --no-git-tag-version to let n8n-node release handle git operations
           if [ -n "$INPUT_VERSION" ]; then
             echo "Using explicit version: $INPUT_VERSION"
             CURRENT=$(node -p 'require("./package.json").version')
             echo "Current package.json version: $CURRENT"
-            if [ "$INPUT_VERSION" = "$CURRENT" ]; then
-              echo "Version unchanged ($CURRENT). Will create tag only."
-              if [ "$DRY_RUN" != "true" ]; then
-                git tag "v$CURRENT"
-              fi
+            
+            if [ "$INPUT_VERSION" != "$CURRENT" ]; then
+              echo "Updating package.json to version $INPUT_VERSION"
+              npm version "$INPUT_VERSION" --no-git-tag-version
             else
-              if [ "$DRY_RUN" = "true" ]; then
-                echo "Would run: npm version $INPUT_VERSION -m 'chore(release): %s' --no-git-tag-version"
-                npm version "$INPUT_VERSION" --no-git-tag-version
-              else
-                npm version "$INPUT_VERSION" -m "chore(release): %s"
-              fi
+              echo "Version unchanged ($CURRENT)"
             fi
           else
-            echo "No explicit version provided, bumping $RELEASE_TYPE"
-            if [ "$DRY_RUN" = "true" ]; then
-              echo "Would run: npm version $RELEASE_TYPE -m 'chore(release): %s' --no-git-tag-version"
-              npm version "$RELEASE_TYPE" --no-git-tag-version
-            else
-              npm version "$RELEASE_TYPE" -m "chore(release): %s"
-            fi
+            echo "Bumping $RELEASE_TYPE version"
+            npm version "$RELEASE_TYPE" --no-git-tag-version
           fi
 
           # Export the current package.json version for following steps
           VERSION_CURRENT=$(node -p 'require("./package.json").version')
           echo "VERSION=$VERSION_CURRENT" >> $GITHUB_OUTPUT
           echo "New version: $VERSION_CURRENT"
+          
+          # Commit the version change (without tag)
+          if [ "$DRY_RUN" != "true" ]; then
+            git add package.json package-lock.json 2>/dev/null || git add package.json
+            git commit -m "chore(release): $VERSION_CURRENT"
+            echo "✅ Version committed (tag will be created by npm run release)"
+          fi
 
       - name: Test publish (dry-run validation)
         if: ${{ github.event.inputs.dry_run == 'true' }}
@@ -183,6 +180,10 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           echo "Publishing to npm using n8n release command..."
+          # n8n-node release will handle:
+          # - Creating the git tag
+          # - Pushing to npm
+          # - Running all prerelease checks
           npm run release
           echo "✅ Package published successfully to npm!"
 
@@ -195,11 +196,11 @@ jobs:
           # Configure git remote with authentication
           git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git
           
-          # Push the new commit and tags back to repo
-          echo "Pushing to branch: ${BRANCH}"
+          # n8n-node release already created the tag, now push everything
+          echo "Pushing version commit to branch: ${BRANCH}"
           git push origin HEAD:"${BRANCH}"
           
-          echo "Pushing tags"
+          echo "Pushing tags created by n8n-node release"
           git push --tags
           echo "✅ Changes pushed to repository!"
 
