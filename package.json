@@ -1,6 +1,6 @@
 {
     "name": "n8n-nodes-markdown-to-telegram-html",
-    "version": "0.9.0",
+    "version": "1.0.8",
     "description": "n8n node to convert Markdown to Telegram-compatible HTML",
     "license": "MIT",
     "homepage": "https://github.com/alejandrosnz/n8n-nodes-markdown-to-telegram-html",
