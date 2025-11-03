@@ -3,6 +3,8 @@
 This repository contains a custom **n8n node** that converts **Markdown** into **Telegram-compatible HTML**.  
 It preserves Telegram-specific features (like spoilers using `||spoiler||`) and formats standard Markdown into HTML that Telegram accepts.
 
+![Sample usage in a workflow](img/sample_usage_workflow.png)
+
 Based on [andresberrios/n8n-nodes-telegram-better-markdown](https://github.com/andresberrios/n8n-nodes-telegram-better-markdown).
 
 ---
@@ -116,3 +118,5 @@ npm test -- --coverage --runInBand
 4. Choose a **Message Limit Strategy**:
    - `truncate` for a single, shortened message.
    - `split` for multiple message chunks.
+
+![Sample usage settings](img/sample_usage_settings.png)
