@@ -62,6 +62,30 @@ When you want to send the entire message as multiple consecutive Telegram messag
 
 ---
 
+## 🔄 Conversions
+
+This node automatically converts standard Markdown elements into their Telegram-compatible HTML equivalents, including:
+
+| Markdown | Telegram HTML Output |
+|-----------|----------------------|
+| `**bold**` or `__bold__` | `<b>bold</b>` |
+| `*italic*` or `_italic_` | `<i>italic</i>` |
+| `~~strikethrough~~` | `<s>strikethrough</s>` |
+| `__underline__` | `<u>underline</u>` |
+| `` `inline code` `` | `<code>inline code</code>` |
+| \```code blocks\``` | `<pre><code>...</code></pre>` |
+| `> blockquote` | `<blockquote>...</blockquote>` |
+| Lists (`-`, `*`, `1.`) | Rendered with proper indentation |
+| `[text](url)` | `<a href="url">text</a>` |
+| `![alt](tg://emoji?id=12345)` | `<tg-emoji emoji-id="12345">🙂</tg-emoji>` |
+| Tables (`\| col1 \| col2 \|`) | `<pre><code>…</code></pre>` |
+| Spoilers (`\|\|secret\|\|`) | `<tg-spoiler>secret</tg-spoiler>` |
+| Horizontal rules (`---`) | `------` |
+
+> ⚙️ All unsupported Markdown features are safely escaped or ignored to ensure Telegram compatibility.
+
+---
+
 ## 🧪 Example Outputs
 
 ### `truncate` Mode
