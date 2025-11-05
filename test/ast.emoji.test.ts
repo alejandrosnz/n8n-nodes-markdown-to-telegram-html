@@ -23,3 +23,36 @@ describe('ast.emoji', () => {
     expect(/(<b><a|<tg-emoji)/.test(html)).toBe(true);
   });
 });
+
+describe('ast.emoji.validEmojiFallback', () => {
+  test('tg emoji with valid emoji alt uses it as fallback', () => {
+    const node = { type: 'image', url: 'tg://emoji?id=123456', alt: '🔥' };
+    const html = nodeToHtml(node);
+    expect(html).toContain('<tg-emoji emoji-id="123456">🔥</tg-emoji>');
+  });
+
+  test('tg emoji with invalid alt uses question mark fallback', () => {
+    const node = { type: 'image', url: 'tg://emoji?id=123456', alt: 'not-emoji' };
+    const html = nodeToHtml(node);
+    expect(html).toContain('<tg-emoji emoji-id="123456">❓</tg-emoji>');
+  });
+
+  test('tg emoji with empty alt uses question mark fallback', () => {
+    const node = { type: 'image', url: 'tg://emoji?id=123456', alt: '' };
+    const html = nodeToHtml(node);
+    expect(html).toContain('<tg-emoji emoji-id="123456">❓</tg-emoji>');
+  });
+
+  test('tg emoji with null alt uses question mark fallback', () => {
+    const node = { type: 'image', url: 'tg://emoji?id=123456', alt: null };
+    const html = nodeToHtml(node);
+    expect(html).toContain('<tg-emoji emoji-id="123456">❓</tg-emoji>');
+  });
+
+  test('tg emoji escapes special characters in emoji id', () => {
+    const node = { type: 'image', url: 'tg://emoji?id=123<script>', alt: '😀' };
+    const html = nodeToHtml(node);
+    expect(html).toContain('emoji-id="123&lt;script&gt;"');
+    expect(html).not.toContain('<script>');
+  });
+});

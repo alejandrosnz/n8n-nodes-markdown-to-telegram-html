@@ -12,7 +12,11 @@ export interface Node {
 // --- Helper function for escaping HTML special characters ---
 export function escapeHtml(text: string): string {
     if (typeof text !== 'string') return '';
-    return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
 }
 
 // --- Helper function to get the raw text content of a node ---
@@ -29,22 +33,29 @@ export function getNodeText(node: Node): string {
     return text;
 }
 
+// --- Helper function to validate if a string is a valid emoji ---
+function isValidEmoji(text: string): boolean {
+    if (!text) return false;
+    // Regex to match a single emoji character
+    const emojiRegex = /^(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)$/u;
+    return emojiRegex.test(text.trim());
+}
+
 // --- Helper function to process spoiler syntax in text ---
 export function processSpoilers(text: string): string {
-    // Replace ||spoiler|| with <tg-spoiler>spoiler</tg-spoiler>, but avoid
-    // replacing when the marker appears inside or immediately after a URL
-    return text.replace(/\|\|([^|]+?)\|\|/g, (match: string, content: string, offset: number, full: string) => {
-        // Find the token (word) that contains the match by looking for surrounding whitespace
-        const tokenStart = full.lastIndexOf(' ', offset) + 1;
-        const nextSpace = full.indexOf(' ', offset);
-        const token = full.slice(tokenStart, nextSpace === -1 ? undefined : nextSpace);
+    // Replace ||spoiler|| with <tg-spoiler>spoiler</tg-spoiler>
+    // Avoid replacing when the marker is inside a URL
+    return text.replace(/\|\|([\s\S]*?)\|\|/g, (match: string, content: string, offset: number, full: string) => {
+        // Look behind to see if it's part of a URL
+        const before = full.slice(Math.max(0, offset - 100), offset);
 
-        // If the token (the URL or word around the marker) looks like a URL, skip replacement
-        if (token.includes('http') || token.includes('tg:') || token.includes('://')) {
+        // If preceded by a URL scheme, do not replace
+        if (/(?:https?|tg|ftp):\/\/[^\s]*$/.test(before)) {
             return match;
         }
 
-        return `<tg-spoiler>${escapeHtml(content)}</tg-spoiler>`;
+        // Return the spoiler HTML tag
+        return `<tg-spoiler>${content}</tg-spoiler>`;
     });
 }
 
@@ -80,7 +91,7 @@ export function nodeToHtml(node: Node, context: { listDepth?: number; parent?: N
             return `<code>${escapeHtml(node.value || '')}</code>`;
 
         case 'code': {
-            const lang = node.lang ? ` class="language-${node.lang}"` : '';
+            const lang = node.lang ? ` class="language-${escapeHtml(node.lang)}"` : '';
             const code = escapeHtml(node.value || '');
             return `<pre><code${lang}>${code}</code></pre>\n`;
         }
@@ -92,17 +103,24 @@ export function nodeToHtml(node: Node, context: { listDepth?: number; parent?: N
         }
 
         case 'image': {
+            // Handle tg://emoji links
             if (node.url && node.url.startsWith('tg://emoji')) {
                 try {
                     const urlObj = new URL(node.url);
                     const emojiId = urlObj.searchParams.get('id');
                     if (emojiId) {
-                        return `<tg-emoji emoji-id="${emojiId}">${escapeHtml(node.alt || '')}</tg-emoji>`;
+                        // Validar que el alt es un emoji válido, sino usar fallback
+                        let fallbackEmoji = '❓';
+                        if (node.alt && isValidEmoji(node.alt)) {
+                            fallbackEmoji = node.alt;
+                        }
+                        return `<tg-emoji emoji-id="${escapeHtml(emojiId)}">${fallbackEmoji}</tg-emoji>`;
                     }
                 } catch {
                     // Fallback for invalid tg:// URL
                 }
             }
+            // Fallback for regular images: show as bold link with alt text
             const imageUrl = escapeHtml(node.url || '');
             const alt = escapeHtml(node.alt || 'image');
             return `<b><a href="${imageUrl}">${alt}</a></b>`;
@@ -112,11 +130,13 @@ export function nodeToHtml(node: Node, context: { listDepth?: number; parent?: N
             let isExpandable = false;
             const rawText = getNodeText(node);
 
+            // Check if blockquote should be expandable
             const lineCount = (rawText.match(/\n/g) || []).length + 1;
             if (lineCount > 4 || rawText.length > 320) {
                 isExpandable = true;
             }
 
+            // Handle spoiler blockquote syntax (|| at end)
             if (rawText.trim().endsWith('||')) {
                 isExpandable = true;
                 const removeMarker = (n: Node): boolean => {
@@ -135,8 +155,9 @@ export function nodeToHtml(node: Node, context: { listDepth?: number; parent?: N
             }
 
             const content = node.children ? node.children.map((child) => nodeToHtml(child, context)).join('') : '';
-            const tag = isExpandable ? 'blockquote expandable' : 'blockquote';
-            return `<${tag}>${content}</${tag}>\n`;
+            const openTag = isExpandable ? '<blockquote expandable>' : '<blockquote>';
+            const closeTag = '</blockquote>';
+            return `${openTag}${content.trim()}${closeTag}\n`;
         }
 
         case 'list': {
