@@ -203,8 +203,41 @@ export function nodeToHtml(node: Node, context: { listDepth?: number; parent?: N
         case 'thematicBreak':
             return '------\n\n';
 
-        case 'table':
-            return `<i>[Table content is not supported and has been omitted]</i>\n`;
+        case 'table': {
+            // Build a plain-text markdown-style table and wrap it in a pre/code block
+            // We try to reconstruct rows and cells from the AST.
+            const rows: string[] = [];
+
+            if (node.children) {
+                for (const rowNode of node.children) {
+                    // Each rowNode should contain cell nodes as children
+                    const cells: string[] = [];
+                    if (rowNode.children) {
+                        for (const cellNode of rowNode.children) {
+                            // getNodeText will pull the raw textual content of the cell
+                            let cellText = getNodeText(cellNode) || '';
+                            // Escape any pipe chars so the visual table doesn't break
+                            cellText = cellText.replace(/\|/g, '\\|');
+                            cells.push(cellText.trim());
+                        }
+                    }
+                    if (cells.length > 0) {
+                        rows.push(`| ${cells.join(' | ')} |`);
+                    }
+                }
+            }
+
+            // If we have at least a header + one row, ensure there's a separator line after the first row
+            if (rows.length >= 2) {
+                const headerCols = rows[0].split('|').length - 2; // count columns from header
+                const separator = `| ${Array(headerCols).fill('---').join(' | ')} |`;
+                rows.splice(1, 0, separator);
+            }
+
+            const tableText = rows.join('\n');
+            // Escape for HTML since this will be placed inside <pre><code>
+            return `<pre><code>${escapeHtml(tableText)}</code></pre>\n`;
+        }
 
         case 'break':
             return '\n';
