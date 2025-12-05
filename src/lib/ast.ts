@@ -204,40 +204,66 @@ export function nodeToHtml(node: Node, context: { listDepth?: number; parent?: N
             return '------\n\n';
 
         case 'table': {
-            // Build a plain-text markdown-style table and wrap it in a pre/code block
-            // We try to reconstruct rows and cells from the AST.
+            // Robust table handling: support multiple AST shapes and clean cell text
             const rows: string[] = [];
 
-            if (node.children) {
-                for (const rowNode of node.children) {
-                    // Each rowNode should contain cell nodes as children
-                    const cells: string[] = [];
-                    if (rowNode.children) {
-                        for (const cellNode of rowNode.children) {
-                            // getNodeText will pull the raw textual content of the cell
-                            let cellText = getNodeText(cellNode) || '';
-                            // Escape any pipe chars so the visual table doesn't break
-                            cellText = cellText.replace(/\|/g, '\\|');
-                            cells.push(cellText.trim());
-                        }
+            // Helper to extract cells from a row node
+            const extractCells = (rowNode: Node): string[] => {
+                const cells: string[] = [];
+                if (!rowNode) return cells;
+                // rowNode.children normally contains table cell nodes
+                if (rowNode.children) {
+                    for (const cellNode of rowNode.children) {
+                        // getNodeText will pull the raw textual content of the cell (including nested strong/em nodes)
+                        let cellText = getNodeText(cellNode) || '';
+                        // replace internal newlines with space and collapse multiple spaces
+                        cellText = cellText.replace(/\n+/g, ' ').replace(/\s+/g, ' ').trim();
+                        // Escape any pipe chars so the visual table doesn't break
+                        cellText = cellText.replace(/\|/g, '\\|');
+                        // Final trim
+                        cells.push(cellText);
                     }
+                }
+                return cells;
+            };
+
+            // Some parsers put header/body as separate properties (e.g., remark)
+            if ((node as any).header && Array.isArray((node as any).header)) {
+                const headerRow = (node as any).header[0];
+                const headerCells = extractCells(headerRow);
+                if (headerCells.length > 0) rows.push('| ' + headerCells.join(' | ') + ' |');
+
+                if ((node as any).rows && Array.isArray((node as any).rows)) {
+                    for (const r of (node as any).rows) {
+                        const cells = extractCells(r);
+                        if (cells.length > 0) rows.push('| ' + cells.join(' | ') + ' |');
+                    }
+                }
+            } else if (node.children && node.children.length > 0) {
+                // Fallback: assume every child is a row (typical mdast: table -> tableRow -> tableCell)
+                for (const rowNode of node.children) {
+                    const cells = extractCells(rowNode);
                     if (cells.length > 0) {
-                        rows.push(`| ${cells.join(' | ')} |`);
+                        rows.push('| ' + cells.join(' | ') + ' |');
                     }
                 }
             }
 
             // If we have at least a header + one row, ensure there's a separator line after the first row
             if (rows.length >= 2) {
-                const headerCols = rows[0].split('|').length - 2; // count columns from header
+                // Count columns from first row
+                const headerCols = rows[0].split('|').length - 2; // subtract the surrounding pipes
                 const separator = `| ${Array(headerCols).fill('---').join(' | ')} |`;
                 rows.splice(1, 0, separator);
             }
+
+            if (rows.length === 0) return '';
 
             const tableText = rows.join('\n');
             // Escape for HTML since this will be placed inside <pre><code>
             return `<pre><code>${escapeHtml(tableText)}</code></pre>\n`;
         }
+
 
         case 'break':
             return '\n';
