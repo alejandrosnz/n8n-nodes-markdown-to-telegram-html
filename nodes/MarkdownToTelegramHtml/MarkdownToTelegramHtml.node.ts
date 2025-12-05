@@ -70,8 +70,8 @@ export class MarkdownToTelegramHtml implements INodeType {
 				default: {},
 				options: [
 					{
-						displayName: 'Parse Escaped Characters',
-						name: 'parseEscapes',
+						displayName: 'Clean Escaped Characters',
+						name: 'cleanEscapes',
 						type: 'boolean',
 						default: true,
 						description: 'Whether to replace literal escape sequences (e.g. "\\n", "\\\\") with actual characters. Enable this if your input text shows "\\n" instead of newlines.',
@@ -92,7 +92,7 @@ export class MarkdownToTelegramHtml implements INodeType {
 				const messageLimitStrategy = this.getNodeParameter('messageLimitStrategy', itemIndex, 'truncate') as string;
 				const options = this.getNodeParameter('options', itemIndex, {}) as IDataObject;
 
-				if (options.parseEscapes) {
+				if (options.cleanEscapes) {
 					markdownText = markdownText.replace(/\\\\/g, '\\').replace(/\\n/g, '\n');
 				}
 

@@ -22,7 +22,7 @@ describe('MarkdownToTelegramHtml Node', () => {
         (markdownToTelegramHtml as jest.Mock).mockClear();
     });
 
-    it('should unescape input when parseEscapes option is true', async () => {
+    it('should unescape input when cleanEscapes option is true', async () => {
         // Input: "Line 1\\nLine 2" (literal backslash followed by n, typical escaped newline)
         const inputString = 'Line 1\\\\nLine 2';
 
@@ -35,7 +35,7 @@ describe('MarkdownToTelegramHtml Node', () => {
             if (paramName === 'markdownText') return inputString;
             if (paramName === 'outputField') return 'telegramHtml';
             if (paramName === 'messageLimitStrategy') return 'truncate';
-            if (paramName === 'options') return { parseEscapes: true };
+            if (paramName === 'options') return { cleanEscapes: true };
             return undefined;
         });
 
@@ -46,7 +46,7 @@ describe('MarkdownToTelegramHtml Node', () => {
         expect(markdownToTelegramHtml).toHaveBeenCalledWith('Line 1\nLine 2');
     });
 
-    it('should NOT unescape input when parseEscapes option is false', async () => {
+    it('should NOT unescape input when cleanEscapes option is false', async () => {
         const inputString = 'Line 1\\\\nLine 2';
 
         // Mock input data
@@ -58,7 +58,7 @@ describe('MarkdownToTelegramHtml Node', () => {
             if (paramName === 'markdownText') return inputString;
             if (paramName === 'outputField') return 'telegramHtml';
             if (paramName === 'messageLimitStrategy') return 'truncate';
-            if (paramName === 'options') return { parseEscapes: false };
+            if (paramName === 'options') return { cleanEscapes: false };
             return undefined;
         });
 
