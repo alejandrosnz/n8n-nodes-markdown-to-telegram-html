@@ -1,16 +1,23 @@
 export interface Node {
-	type: string;
-	value?: string;
-	children?: Node[];
-	url?: string;
-	alt?: string | null | undefined;
-	lang?: string;
-	ordered?: boolean;
-	start?: number;
+    type: string;
+    value?: string;
+    children?: Node[];
+    url?: string;
+    alt?: string | null | undefined;
+    lang?: string;
+    ordered?: boolean;
+    start?: number;
+}
+
+// TableNode extends Node to include optional header and rows for table handling
+export interface TableNode extends Node {
+    header?: Node[];
+    rows?: Node[];
 }
 
 // --- Helper function for escaping HTML special characters ---
-export function escapeHtml(text: string): string {
+export function escapeHtml(text: unknown): string {
+    if (typeof text !== 'string') return '';
     if (typeof text !== 'string') return '';
     return text
         .replace(/&/g, '&amp;')
@@ -182,7 +189,7 @@ export function nodeToHtml(node: Node, context: { listDepth?: number; parent?: N
             }
 
             let itemContent = '';
-            if(node.children) {
+            if (node.children) {
                 for (let i = 0; i < node.children.length; i++) {
                     const child = node.children[i];
                     if (child.type === 'paragraph') {
@@ -228,17 +235,18 @@ export function nodeToHtml(node: Node, context: { listDepth?: number; parent?: N
             };
 
             // Some parsers put header/body as separate properties (e.g., remark)
-            if ((node as any).header && Array.isArray((node as any).header)) {
-                const headerRow = (node as any).header[0];
+            if ((node as TableNode).header && Array.isArray((node as TableNode).header)) {
+                const headerRow = (node as TableNode).header![0];
                 const headerCells = extractCells(headerRow);
                 if (headerCells.length > 0) rows.push('| ' + headerCells.join(' | ') + ' |');
 
-                if ((node as any).rows && Array.isArray((node as any).rows)) {
-                    for (const r of (node as any).rows) {
+                if ((node as TableNode).rows && Array.isArray((node as TableNode).rows)) {
+                    for (const r of (node as TableNode).rows!) {
                         const cells = extractCells(r);
                         if (cells.length > 0) rows.push('| ' + cells.join(' | ') + ' |');
                     }
                 }
+
             } else if (node.children && node.children.length > 0) {
                 // Fallback: assume every child is a row (typical mdast: table -> tableRow -> tableCell)
                 for (const rowNode of node.children) {

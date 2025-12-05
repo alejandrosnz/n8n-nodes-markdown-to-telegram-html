@@ -1,18 +1,18 @@
-import { nodeToHtml } from '../src/lib/ast';
+import { nodeToHtml, Node } from '../src/lib/ast';
 
 // Minimal node helpers to keep tests legible
 const text = (v: string) => ({ type: 'text', value: v });
-const cell = (children: any[]) => ({ type: 'tableCell', children });
-const row = (cells: any[]) => ({ type: 'tableRow', children: cells });
-const table = (rows: any[]) => ({ type: 'table', children: rows });
+const cell = (children: Node[]) => ({ type: 'tableCell', children });
+const row = (cells: Node[]) => ({ type: 'tableRow', children: cells });
+const table = (rows: Node[]) => ({ type: 'table', children: rows });
 
 describe('ast.nodeToHtml - tables', () => {
   test('wraps reconstructed table in <pre><code> and inserts separator after header', () => {
     const tbl = table([
       // header row
-      row([ cell([ text('Header 1') ]), cell([ text('Header 2') ]) ]),
+      row([cell([text('Header 1')]), cell([text('Header 2')])]),
       // data row
-      row([ cell([ text('Cell A') ]), cell([ text('Cell B') ]) ])
+      row([cell([text('Cell A')]), cell([text('Cell B')])])
     ]);
 
     const html = nodeToHtml(tbl);
@@ -33,8 +33,8 @@ describe('ast.nodeToHtml - tables', () => {
 
   test('escapes pipe characters inside cells (so visual table stays correct)', () => {
     const tbl = table([
-      row([ cell([ text('Head | col') ]) ]),
-      row([ cell([ text('a | b') ]) ])
+      row([cell([text('Head | col')])]),
+      row([cell([text('a | b')])])
     ]);
 
     const html = nodeToHtml(tbl);
@@ -49,8 +49,8 @@ describe('ast.nodeToHtml - tables', () => {
 
   test('escapes HTML special characters inside table cells', () => {
     const tbl = table([
-      row([ cell([ text('<b>bold</b>') ]) ]),
-      row([ cell([ text('<script>alert()</script>') ]) ])
+      row([cell([text('<b>bold</b>')])]),
+      row([cell([text('<script>alert()</script>')])])
     ]);
 
     const html = nodeToHtml(tbl);
@@ -63,7 +63,7 @@ describe('ast.nodeToHtml - tables', () => {
   test('does not insert separator if table has only a single row', () => {
     const tbl = table([
       // single row only -> treated as no header + data, so no separator inserted
-      row([ cell([ text('Only one row') ]), cell([ text('Col2') ]) ])
+      row([cell([text('Only one row')]), cell([text('Col2')])])
     ]);
 
     const html = nodeToHtml(tbl);

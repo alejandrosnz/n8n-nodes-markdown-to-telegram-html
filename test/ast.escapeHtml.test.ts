@@ -19,7 +19,7 @@ describe('ast.escapeHtml', () => {
   });
 
   test('handles non-string input gracefully', () => {
-    const escaped = escapeHtml(null as any);
+    const escaped = escapeHtml(null as unknown);
     expect(escaped).toBe('');
   });
 });
