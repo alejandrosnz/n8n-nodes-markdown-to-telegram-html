@@ -58,6 +58,8 @@ When you want to send the entire message as multiple consecutive Telegram messag
 ### Notes on Behavior
 
 - The node uses helper functions that **tokenize HTML** and prefer to cut at safe points (e.g., closed tags or line breaks).  
+- **Open HTML tags are automatically closed** before truncation/split boundaries to ensure valid HTML output.
+- In `split` mode, **tags are re-opened** at the start of each subsequent chunk to maintain formatting continuity (e.g., `<b>`, `<code>`, `<a href="...">` with attributes preserved).
 - In `truncate` mode, a ` [...]` suffix is appended.  
 - In `split` mode, each chunk becomes a separate output item — downstream nodes (like Telegram Send Message) will process each part independently.
 
