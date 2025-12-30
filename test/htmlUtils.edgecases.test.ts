@@ -1,4 +1,4 @@
-import { safeTruncateHtml, splitHtmlIntoChunks } from '../src/lib/htmlUtils';
+import { safeTruncateHtml, splitHtmlIntoChunks, getOpenTags, generateClosingTags, generateOpeningTags } from '../src/lib/htmlUtils';
 
 describe('htmlUtils.edgecases', () => {
   test('safeTruncateHtml removes partial trailing tag', () => {
@@ -37,5 +37,96 @@ describe('htmlUtils.edgecases', () => {
     // The result must not contain the unclosed tag token
     expect(truncated.includes('<unclosed')).toBe(false);
     expect(truncated).toContain('[...]');
+  });
+
+  test('safeTruncateHtml closes open tags before truncation marker', () => {
+    const html = '<p>Hello <code>this is a very long code block that will be truncated</code></p>';
+    const truncated = safeTruncateHtml(html, 30);
+    // Should close the <code> and <p> tags
+    expect(truncated).toContain('</code>');
+    expect(truncated).toContain('</p>');
+    expect(truncated).toContain('[...]');
+  });
+
+  test('safeTruncateHtml closes nested tags in correct LIFO order', () => {
+    const html = '<b><i><code>deeply nested content that is very long</code></i></b>';
+    const truncated = safeTruncateHtml(html, 35);
+    // Tags should be closed in reverse order: </code></i></b>
+    const codeClose = truncated.indexOf('</code>');
+    const iClose = truncated.indexOf('</i>');
+    const bClose = truncated.indexOf('</b>');
+    expect(codeClose).toBeLessThan(iClose);
+    expect(iClose).toBeLessThan(bClose);
+    expect(truncated).toContain('[...]');
+  });
+
+  test('safeTruncateHtml closes anchor tags with href', () => {
+    const html = '<a href="https://example.com">This is a very long link text that will be truncated</a>';
+    const truncated = safeTruncateHtml(html, 50);
+    expect(truncated).toContain('</a>');
+    expect(truncated).toContain('[...]');
+  });
+});
+
+describe('htmlUtils.getOpenTags', () => {
+  test('returns empty array for balanced HTML', () => {
+    const html = '<p>Hello <b>world</b></p>';
+    const openTags = getOpenTags(html);
+    expect(openTags).toEqual([]);
+  });
+
+  test('detects single open tag', () => {
+    const html = '<code>unclosed code';
+    const openTags = getOpenTags(html);
+    expect(openTags).toHaveLength(1);
+    expect(openTags[0].tagName).toBe('code');
+    expect(openTags[0].fullOpenTag).toBe('<code>');
+  });
+
+  test('detects nested open tags in order', () => {
+    const html = '<b><i><code>nested';
+    const openTags = getOpenTags(html);
+    expect(openTags).toHaveLength(3);
+    expect(openTags[0].tagName).toBe('b');
+    expect(openTags[1].tagName).toBe('i');
+    expect(openTags[2].tagName).toBe('code');
+  });
+
+  test('preserves attributes in fullOpenTag', () => {
+    const html = '<a href="https://example.com">link text';
+    const openTags = getOpenTags(html);
+    expect(openTags).toHaveLength(1);
+    expect(openTags[0].tagName).toBe('a');
+    expect(openTags[0].fullOpenTag).toBe('<a href="https://example.com">');
+  });
+
+  test('ignores self-closing tags', () => {
+    const html = '<p>Hello<br/>World';
+    const openTags = getOpenTags(html);
+    expect(openTags).toHaveLength(1);
+    expect(openTags[0].tagName).toBe('p');
+  });
+});
+
+describe('htmlUtils.generateClosingTags', () => {
+  test('generates closing tags in reverse order', () => {
+    const openTags = [
+      { tagName: 'b', fullOpenTag: '<b>' },
+      { tagName: 'i', fullOpenTag: '<i>' },
+      { tagName: 'code', fullOpenTag: '<code>' },
+    ];
+    const closing = generateClosingTags(openTags);
+    expect(closing).toBe('</code></i></b>');
+  });
+});
+
+describe('htmlUtils.generateOpeningTags', () => {
+  test('generates opening tags with attributes', () => {
+    const openTags = [
+      { tagName: 'a', fullOpenTag: '<a href="https://example.com">' },
+      { tagName: 'b', fullOpenTag: '<b>' },
+    ];
+    const opening = generateOpeningTags(openTags);
+    expect(opening).toBe('<a href="https://example.com"><b>');
   });
 });
