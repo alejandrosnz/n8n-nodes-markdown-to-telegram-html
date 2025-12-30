@@ -63,23 +63,11 @@ export class MarkdownToTelegramHtml implements INodeType {
 				description: 'What to do when the generated HTML exceeds Telegram\'s 4096 character limit',
 			},
 			{
-				displayName: 'Advanced Settings',
-				name: 'showAdvancedSettings',
-				type: 'boolean',
-				default: false,
-				description: 'Whether to show advanced configuration options',
-			},
-			{
 				displayName: 'Options',
 				name: 'options',
 				type: 'collection',
-				placeholder: 'Add Option',
+				placeholder: 'Show Advanced Options',
 				default: {},
-				displayOptions: {
-					show: {
-						showAdvancedSettings: [true],
-					},
-				},
 				options: [
 					{
 						displayName: 'Clean Escaped Characters',
@@ -87,6 +75,13 @@ export class MarkdownToTelegramHtml implements INodeType {
 						type: 'boolean',
 						default: true,
 						description: 'Whether to replace literal escape sequences (e.g. "\\n", "\\\\") with actual characters. Enable this if your input text shows "\\n" instead of newlines.',
+					},
+					{
+						displayName: 'Character Limit',
+						name: 'charLimit',
+						type: 'number',
+						default: 4096,
+						description: 'Maximum character limit for Telegram messages. Default is 4096.',
 					},
 				],
 			},
@@ -109,10 +104,11 @@ export class MarkdownToTelegramHtml implements INodeType {
 					markdownText = markdownText.replace(/\\\\/g, '\\').replace(/\\n/g, '\n');
 				}
 
+				const charLimit = (options.charLimit as number) || 4096;
 				const telegramHtml = markdownToTelegramHtml(markdownText);
 
 				// If message is under Telegram limit, just return as single item
-				if (telegramHtml.length <= 4096) {
+				if (telegramHtml.length <= charLimit) {
 					const newItem: INodeExecutionData = {
 						json: {
 							...items[itemIndex].json,
@@ -125,7 +121,7 @@ export class MarkdownToTelegramHtml implements INodeType {
 				}
 
 				if (messageLimitStrategy === 'truncate') {
-					const truncated = safeTruncateHtml(telegramHtml, 4096);
+					const truncated = safeTruncateHtml(telegramHtml, charLimit);
 					const newItem: INodeExecutionData = {
 						json: {
 							...items[itemIndex].json,
@@ -138,7 +134,7 @@ export class MarkdownToTelegramHtml implements INodeType {
 				}
 
 				if (messageLimitStrategy === 'split') {
-					const parts = splitHtmlIntoChunks(telegramHtml, 4096);
+					const parts = splitHtmlIntoChunks(telegramHtml, charLimit);
 					// For split, create multiple output items, each with the same original data
 					for (const part of parts) {
 						const newItem: INodeExecutionData = {

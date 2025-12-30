@@ -1,10 +1,16 @@
 import { MarkdownToTelegramHtml } from '../nodes/MarkdownToTelegramHtml/MarkdownToTelegramHtml.node';
-import { IExecuteFunctions, INodeExecutionData } from 'n8n-workflow';
+import { IExecuteFunctions, INodeExecutionData, NodeOperationError } from 'n8n-workflow';
 import { markdownToTelegramHtml } from '../src/lib/markdownToTelegramHtml';
+import { safeTruncateHtml, splitHtmlIntoChunks } from '../src/lib/htmlUtils';
 
-// Mock the library function
+// Mock the library functions
 jest.mock('../src/lib/markdownToTelegramHtml', () => ({
     markdownToTelegramHtml: jest.fn((text) => `Converted: ${text}`),
+}));
+
+jest.mock('../src/lib/htmlUtils', () => ({
+    safeTruncateHtml: jest.fn((html, limit) => html.substring(0, limit) + ' [...]'),
+    splitHtmlIntoChunks: jest.fn((html, limit) => ['Part 1', 'Part 2']),
 }));
 
 describe('MarkdownToTelegramHtml Node', () => {
@@ -17,9 +23,11 @@ describe('MarkdownToTelegramHtml Node', () => {
             getInputData: jest.fn(),
             getNodeParameter: jest.fn(),
             continueOnFail: jest.fn().mockReturnValue(false),
-            getNode: jest.fn().mockReturnValue({}),
+            getNode: jest.fn().mockReturnValue({ name: 'TestNode' }),
         };
         (markdownToTelegramHtml as jest.Mock).mockClear();
+        (safeTruncateHtml as jest.Mock).mockClear();
+        (splitHtmlIntoChunks as jest.Mock).mockClear();
     });
 
     it('should unescape input when cleanEscapes option is true', async () => {
@@ -68,5 +76,166 @@ describe('MarkdownToTelegramHtml Node', () => {
         // Input was "Line 1\\nLine 2" (double backslash n).
         // JS string: 'Line 1\\\\nLine 2'.
         expect(markdownToTelegramHtml).toHaveBeenCalledWith('Line 1\\\\nLine 2');
+    });
+
+    it('should apply cleanEscapes by default when options is empty', async () => {
+        const inputString = 'Line 1\\nLine 2';
+
+        const inputData: INodeExecutionData[] = [{ json: { text: inputString }, pairedItem: 0 }];
+        (mockExecuteFunctions.getInputData as jest.Mock).mockReturnValue(inputData);
+
+        (mockExecuteFunctions.getNodeParameter as jest.Mock).mockImplementation((paramName: string) => {
+            if (paramName === 'markdownText') return inputString;
+            if (paramName === 'outputField') return 'telegramHtml';
+            if (paramName === 'messageLimitStrategy') return 'truncate';
+            if (paramName === 'options') return {}; // Empty options - cleanEscapes should apply by default
+            return undefined;
+        });
+
+        await node.execute.call(mockExecuteFunctions as IExecuteFunctions);
+
+        // cleanEscapes !== false, so it should clean
+        expect(markdownToTelegramHtml).toHaveBeenCalledWith('Line 1\nLine 2');
+    });
+
+    it('should use custom charLimit when provided', async () => {
+        const longText = 'A'.repeat(100);
+        const inputData: INodeExecutionData[] = [{ json: {}, pairedItem: 0 }];
+        (mockExecuteFunctions.getInputData as jest.Mock).mockReturnValue(inputData);
+
+        // Mock to return text longer than custom limit
+        (markdownToTelegramHtml as jest.Mock).mockReturnValue('B'.repeat(100));
+
+        (mockExecuteFunctions.getNodeParameter as jest.Mock).mockImplementation((paramName: string) => {
+            if (paramName === 'markdownText') return longText;
+            if (paramName === 'outputField') return 'telegramHtml';
+            if (paramName === 'messageLimitStrategy') return 'truncate';
+            if (paramName === 'options') return { charLimit: 50 };
+            return undefined;
+        });
+
+        await node.execute.call(mockExecuteFunctions as IExecuteFunctions);
+
+        expect(safeTruncateHtml).toHaveBeenCalledWith('B'.repeat(100), 50);
+    });
+
+    it('should truncate message when exceeding limit with truncate strategy', async () => {
+        const inputData: INodeExecutionData[] = [{ json: { original: 'data' }, pairedItem: 0 }];
+        (mockExecuteFunctions.getInputData as jest.Mock).mockReturnValue(inputData);
+
+        // Mock to return text longer than 4096
+        (markdownToTelegramHtml as jest.Mock).mockReturnValue('X'.repeat(5000));
+
+        (mockExecuteFunctions.getNodeParameter as jest.Mock).mockImplementation((paramName: string) => {
+            if (paramName === 'markdownText') return 'test';
+            if (paramName === 'outputField') return 'telegram_html';
+            if (paramName === 'messageLimitStrategy') return 'truncate';
+            if (paramName === 'options') return {};
+            return undefined;
+        });
+
+        const result = await node.execute.call(mockExecuteFunctions as IExecuteFunctions);
+
+        expect(safeTruncateHtml).toHaveBeenCalledWith('X'.repeat(5000), 4096);
+        expect(result[0]).toHaveLength(1);
+        expect(result[0][0].json.original).toBe('data');
+    });
+
+    it('should split message into multiple items with split strategy', async () => {
+        const inputData: INodeExecutionData[] = [{ json: { original: 'data' }, pairedItem: 0 }];
+        (mockExecuteFunctions.getInputData as jest.Mock).mockReturnValue(inputData);
+
+        // Mock to return text longer than 4096
+        (markdownToTelegramHtml as jest.Mock).mockReturnValue('X'.repeat(5000));
+
+        (mockExecuteFunctions.getNodeParameter as jest.Mock).mockImplementation((paramName: string) => {
+            if (paramName === 'markdownText') return 'test';
+            if (paramName === 'outputField') return 'telegram_html';
+            if (paramName === 'messageLimitStrategy') return 'split';
+            if (paramName === 'options') return {};
+            return undefined;
+        });
+
+        const result = await node.execute.call(mockExecuteFunctions as IExecuteFunctions);
+
+        expect(splitHtmlIntoChunks).toHaveBeenCalledWith('X'.repeat(5000), 4096);
+        // Mock returns ['Part 1', 'Part 2'], so we expect 2 items
+        expect(result[0]).toHaveLength(2);
+        expect(result[0][0].json.telegram_html).toBe('Part 1');
+        expect(result[0][1].json.telegram_html).toBe('Part 2');
+        expect(result[0][0].json.original).toBe('data');
+        expect(result[0][1].json.original).toBe('data');
+    });
+
+    it('should handle errors with continueOnFail enabled', async () => {
+        const inputData: INodeExecutionData[] = [{ json: { test: 'data' }, pairedItem: 0 }];
+        (mockExecuteFunctions.getInputData as jest.Mock).mockReturnValue(inputData);
+        (mockExecuteFunctions.continueOnFail as jest.Mock).mockReturnValue(true);
+
+        // Mock to throw error
+        (markdownToTelegramHtml as jest.Mock).mockImplementation(() => {
+            throw new Error('Test error');
+        });
+
+        (mockExecuteFunctions.getNodeParameter as jest.Mock).mockImplementation((paramName: string) => {
+            if (paramName === 'markdownText') return 'test';
+            if (paramName === 'outputField') return 'telegram_html';
+            if (paramName === 'messageLimitStrategy') return 'truncate';
+            if (paramName === 'options') return {};
+            return undefined;
+        });
+
+        const result = await node.execute.call(mockExecuteFunctions as IExecuteFunctions);
+
+        expect(result[0]).toHaveLength(1);
+        expect(result[0][0].json.test).toBe('data');
+        expect(result[0][0].error).toBeDefined();
+    });
+
+    it('should throw error when continueOnFail is disabled', async () => {
+        const inputData: INodeExecutionData[] = [{ json: { test: 'data' }, pairedItem: 0 }];
+        (mockExecuteFunctions.getInputData as jest.Mock).mockReturnValue(inputData);
+        (mockExecuteFunctions.continueOnFail as jest.Mock).mockReturnValue(false);
+
+        // Mock to throw error
+        (markdownToTelegramHtml as jest.Mock).mockImplementation(() => {
+            throw new Error('Test error');
+        });
+
+        (mockExecuteFunctions.getNodeParameter as jest.Mock).mockImplementation((paramName: string) => {
+            if (paramName === 'markdownText') return 'test';
+            if (paramName === 'outputField') return 'telegram_html';
+            if (paramName === 'messageLimitStrategy') return 'truncate';
+            if (paramName === 'options') return {};
+            return undefined;
+        });
+
+        await expect(node.execute.call(mockExecuteFunctions as IExecuteFunctions)).rejects.toThrow();
+    });
+
+    it('should re-throw NodeOperationError with context', async () => {
+        const inputData: INodeExecutionData[] = [{ json: {}, pairedItem: 0 }];
+        (mockExecuteFunctions.getInputData as jest.Mock).mockReturnValue(inputData);
+        (mockExecuteFunctions.continueOnFail as jest.Mock).mockReturnValue(false);
+
+        const nodeError = new NodeOperationError(
+            { name: 'TestNode' } as any,
+            'Test error'
+        );
+        nodeError.context = { someContext: 'value' };
+
+        (markdownToTelegramHtml as jest.Mock).mockImplementation(() => {
+            throw nodeError;
+        });
+
+        (mockExecuteFunctions.getNodeParameter as jest.Mock).mockImplementation((paramName: string) => {
+            if (paramName === 'markdownText') return 'test';
+            if (paramName === 'outputField') return 'telegram_html';
+            if (paramName === 'messageLimitStrategy') return 'truncate';
+            if (paramName === 'options') return {};
+            return undefined;
+        });
+
+        await expect(node.execute.call(mockExecuteFunctions as IExecuteFunctions)).rejects.toThrow(NodeOperationError);
     });
 });
