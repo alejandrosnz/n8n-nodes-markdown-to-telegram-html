@@ -29,11 +29,6 @@ describe('ast.edgecases', () => {
     expect(nodeToHtml(block)).toContain('class="language-js"');
   });
 
-  test('table returns omission string', () => {
-    const t = { type: 'table' };
-    expect(nodeToHtml(t)).toContain('[Table content is not supported');
-  });
-
   test('ordered list respects start and nested lists indent', () => {
     const list = {
       type: 'list',

@@ -5,7 +5,7 @@ It preserves Telegram-specific features (like spoilers using `||spoiler||`) and 
 
 ![Sample usage in a workflow](img/sample_usage_workflow.png)
 
-Based on [andresberrios/n8n-nodes-telegram-better-markdown](https://github.com/andresberrios/n8n-nodes-telegram-better-markdown).
+Initial version based on [andresberrios/n8n-nodes-telegram-better-markdown](https://github.com/andresberrios/n8n-nodes-telegram-better-markdown).
 
 ---
 
@@ -25,6 +25,7 @@ This node is designed to:
 | **Markdown Text**          | `string`  | —               | The Markdown content to convert.                                          |
 | **Output Field**           | `string`  | `telegram_html` | Field name in the output JSON containing the generated HTML.              |
 | **Message Limit Strategy** | `options` | `truncate`      | Strategy for handling messages exceeding Telegram's 4096-character limit. |
+| **Clean Escaped Characters** | `boolean` | `true` | Replace literal escape sequences (e.g. "\\n") with actual characters (e.g. "\n"). |
 
 ---
 
@@ -59,6 +60,28 @@ When you want to send the entire message as multiple consecutive Telegram messag
 - The node uses helper functions that **tokenize HTML** and prefer to cut at safe points (e.g., closed tags or line breaks).  
 - In `truncate` mode, a ` [...]` suffix is appended.  
 - In `split` mode, each chunk becomes a separate output item — downstream nodes (like Telegram Send Message) will process each part independently.
+
+## 🔄 Conversions
+
+This node automatically converts standard Markdown elements into their Telegram-compatible HTML equivalents, including:
+
+| Markdown | Telegram HTML Output |
+|-----------|----------------------|
+| `**bold**` or `__bold__` | `<b>bold</b>` |
+| `*italic*` or `_italic_` | `<i>italic</i>` |
+| `~~strikethrough~~` | `<s>strikethrough</s>` |
+| `__underline__` | `<u>underline</u>` |
+| `` `inline code` `` | `<code>inline code</code>` |
+| \```code blocks\``` | `<pre><code>...</code></pre>` |
+| `> blockquote` | `<blockquote>...</blockquote>` |
+| Lists (`-`, `*`, `1.`) | Rendered with proper indentation |
+| `[text](url)` | `<a href="url">text</a>` |
+| `![alt](tg://emoji?id=12345)` | `<tg-emoji emoji-id="12345">🙂</tg-emoji>` |
+| Tables (`\| col1 \| col2 \|`) | `<pre><code>…</code></pre>` |
+| Spoilers (`\|\|secret\|\|`) | `<tg-spoiler>secret</tg-spoiler>` |
+| Horizontal rules (`---`) | `------` |
+
+> ⚙️ All unsupported Markdown features are safely escaped or ignored to ensure Telegram compatibility.
 
 ---
 

@@ -3,6 +3,7 @@ import type {
 	INodeExecutionData,
 	INodeType,
 	INodeTypeDescription,
+	IDataObject,
 } from 'n8n-workflow';
 import { NodeOperationError } from 'n8n-workflow';
 import { markdownToTelegramHtml } from '../../src/lib/markdownToTelegramHtml';
@@ -61,6 +62,34 @@ export class MarkdownToTelegramHtml implements INodeType {
 				default: 'truncate',
 				description: 'What to do when the generated HTML exceeds Telegram\'s 4096 character limit',
 			},
+			{
+				displayName: 'Advanced Settings',
+				name: 'showAdvancedSettings',
+				type: 'boolean',
+				default: false,
+				description: 'Whether to show advanced configuration options',
+			},
+			{
+				displayName: 'Options',
+				name: 'options',
+				type: 'collection',
+				placeholder: 'Add Option',
+				default: {},
+				displayOptions: {
+					show: {
+						showAdvancedSettings: [true],
+					},
+				},
+				options: [
+					{
+						displayName: 'Clean Escaped Characters',
+						name: 'cleanEscapes',
+						type: 'boolean',
+						default: true,
+						description: 'Whether to replace literal escape sequences (e.g. "\\n", "\\\\") with actual characters. Enable this if your input text shows "\\n" instead of newlines.',
+					},
+				],
+			},
 		],
 	};
 
@@ -70,9 +99,15 @@ export class MarkdownToTelegramHtml implements INodeType {
 
 		for (let itemIndex = 0; itemIndex < items.length; itemIndex++) {
 			try {
-				const markdownText = this.getNodeParameter('markdownText', itemIndex, '') as string;
+				let markdownText = this.getNodeParameter('markdownText', itemIndex, '') as string;
 				const outputField = this.getNodeParameter('outputField', itemIndex, 'telegramHtml') as string;
 				const messageLimitStrategy = this.getNodeParameter('messageLimitStrategy', itemIndex, 'truncate') as string;
+				const options = this.getNodeParameter('options', itemIndex, {}) as IDataObject;
+
+				// Clean escaped characters by default, unless explicitly disabled in advanced settings
+				if (options.cleanEscapes !== false) {
+					markdownText = markdownText.replace(/\\\\/g, '\\').replace(/\\n/g, '\n');
+				}
 
 				const telegramHtml = markdownToTelegramHtml(markdownText);
 
