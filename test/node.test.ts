@@ -119,6 +119,27 @@ describe('MarkdownToTelegramHtml Node', () => {
         expect(safeTruncateHtml).toHaveBeenCalledWith('B'.repeat(100), 50);
     });
 
+    it('should cap charLimit to 4096 even if user provides a larger value', async () => {
+        const inputData: INodeExecutionData[] = [{ json: {}, pairedItem: 0 }];
+        (mockExecuteFunctions.getInputData as jest.Mock).mockReturnValue(inputData);
+
+        // Mock to return text longer than Telegram's limit
+        (markdownToTelegramHtml as jest.Mock).mockReturnValue('X'.repeat(5000));
+
+        (mockExecuteFunctions.getNodeParameter as jest.Mock).mockImplementation((paramName: string) => {
+            if (paramName === 'markdownText') return 'test';
+            if (paramName === 'outputField') return 'telegramHtml';
+            if (paramName === 'messageLimitStrategy') return 'truncate';
+            if (paramName === 'options') return { charLimit: 10000 }; // User tries to set limit > 4096
+            return undefined;
+        });
+
+        await node.execute.call(mockExecuteFunctions as IExecuteFunctions);
+
+        // Should be capped to 4096, not 10000
+        expect(safeTruncateHtml).toHaveBeenCalledWith('X'.repeat(5000), 4096);
+    });
+
     it('should truncate message when exceeding limit with truncate strategy', async () => {
         const inputData: INodeExecutionData[] = [{ json: { original: 'data' }, pairedItem: 0 }];
         (mockExecuteFunctions.getInputData as jest.Mock).mockReturnValue(inputData);

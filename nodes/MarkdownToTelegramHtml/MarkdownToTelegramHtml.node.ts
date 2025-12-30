@@ -81,7 +81,11 @@ export class MarkdownToTelegramHtml implements INodeType {
 						name: 'charLimit',
 						type: 'number',
 						default: 4096,
-						description: 'Maximum character limit for Telegram messages. Default is 4096.',
+						typeOptions: {
+							min: 1,
+							max: 4096,
+						},
+						description: 'Maximum character limit for Telegram messages. Telegram allows max 4096 characters per message.',
 					},
 				],
 			},
@@ -104,7 +108,9 @@ export class MarkdownToTelegramHtml implements INodeType {
 					markdownText = markdownText.replace(/\\\\/g, '\\').replace(/\\n/g, '\n');
 				}
 
-				const charLimit = (options.charLimit as number) || 4096;
+				let charLimit = (options.charLimit as number) || 4096;
+				// Ensure charLimit never exceeds 4096 (Telegram's maximum)
+				charLimit = Math.min(charLimit, 4096);
 				const telegramHtml = markdownToTelegramHtml(markdownText);
 
 				// If message is under Telegram limit, just return as single item
