@@ -63,11 +63,23 @@ export class MarkdownToTelegramHtml implements INodeType {
 				description: 'What to do when the generated HTML exceeds Telegram\'s 4096 character limit',
 			},
 			{
+				displayName: 'Advanced Settings',
+				name: 'showAdvancedSettings',
+				type: 'boolean',
+				default: false,
+				description: 'Whether to show advanced configuration options',
+			},
+			{
 				displayName: 'Options',
 				name: 'options',
 				type: 'collection',
 				placeholder: 'Add Option',
 				default: {},
+				displayOptions: {
+					show: {
+						showAdvancedSettings: [true],
+					},
+				},
 				options: [
 					{
 						displayName: 'Clean Escaped Characters',
@@ -92,7 +104,8 @@ export class MarkdownToTelegramHtml implements INodeType {
 				const messageLimitStrategy = this.getNodeParameter('messageLimitStrategy', itemIndex, 'truncate') as string;
 				const options = this.getNodeParameter('options', itemIndex, {}) as IDataObject;
 
-				if (options.cleanEscapes) {
+				// Clean escaped characters by default, unless explicitly disabled in advanced settings
+				if (options.cleanEscapes !== false) {
 					markdownText = markdownText.replace(/\\\\/g, '\\').replace(/\\n/g, '\n');
 				}
 
