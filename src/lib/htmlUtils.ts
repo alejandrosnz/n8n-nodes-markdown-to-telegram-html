@@ -105,6 +105,15 @@ export function safeTruncateHtml(html: string, maxLength: number): string {
     return result;
 }
 
+/**
+ * Checks if an HTML string contains any visible text content (not just tags).
+ * Returns true if there's non-whitespace text after stripping all HTML tags.
+ */
+export function hasVisibleContent(html: string): boolean {
+    const textOnly = html.replace(/<[^>]+>/g, '').trim();
+    return textOnly.length > 0;
+}
+
 export function splitHtmlIntoChunks(html: string, maxLength: number): string[] {
     const tokens = tokenizeHtml(html);
     const parts: string[] = [];
@@ -134,7 +143,10 @@ export function splitHtmlIntoChunks(html: string, maxLength: number): string[] {
                 carryOverTags = [];
             }
 
-            parts.push(chunk);
+            // Only add chunk if it has visible content (not just empty tags)
+            if (hasVisibleContent(chunk)) {
+                parts.push(chunk);
+            }
 
             // Re-open tags at the start of the next chunk content
             if (carryOverTags.length > 0) {
@@ -148,6 +160,6 @@ export function splitHtmlIntoChunks(html: string, maxLength: number): string[] {
             lastSafePos = acc.length;
         }
     }
-    if (acc.trim().length > 0) parts.push(acc.trim());
+    if (hasVisibleContent(acc)) parts.push(acc.trim());
     return parts;
 }

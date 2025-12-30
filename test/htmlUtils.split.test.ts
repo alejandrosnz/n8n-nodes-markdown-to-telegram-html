@@ -1,4 +1,4 @@
-import { splitHtmlIntoChunks } from '../src/lib/htmlUtils';
+import { splitHtmlIntoChunks, hasVisibleContent } from '../src/lib/htmlUtils';
 
 describe('htmlUtils.split exact and fallback', () => {
   test('splits when no safe boundary: hard cut', () => {
@@ -68,5 +68,75 @@ describe('htmlUtils.split tag closure and reopening', () => {
       const closeCount = (part.match(/<\/code>/g) || []).length;
       expect(openCount).toBe(closeCount);
     }
+  });
+});
+
+describe('hasVisibleContent', () => {
+  test('returns true for text content', () => {
+    expect(hasVisibleContent('hello')).toBe(true);
+  });
+
+  test('returns true for HTML with text', () => {
+    expect(hasVisibleContent('<b>hello</b>')).toBe(true);
+  });
+
+  test('returns false for empty tags', () => {
+    expect(hasVisibleContent('<pre></pre>')).toBe(false);
+  });
+
+  test('returns false for nested empty tags', () => {
+    expect(hasVisibleContent('<pre><code></code></pre>')).toBe(false);
+  });
+
+  test('returns false for empty string', () => {
+    expect(hasVisibleContent('')).toBe(false);
+  });
+
+  test('returns false for whitespace only', () => {
+    expect(hasVisibleContent('   ')).toBe(false);
+  });
+
+  test('returns false for tags with whitespace only', () => {
+    expect(hasVisibleContent('<b>   </b>')).toBe(false);
+  });
+
+  test('returns true for HTML entities', () => {
+    expect(hasVisibleContent('&nbsp;')).toBe(true);
+    expect(hasVisibleContent('<span>&amp;</span>')).toBe(true);
+  });
+});
+
+describe('splitHtmlIntoChunks filters empty chunks', () => {
+  test('does not produce empty tag-only chunks with very short maxLength', () => {
+    const html = '<pre><code>a</code></pre><pre><code>b</code></pre>';
+    const parts = splitHtmlIntoChunks(html, 25);
+    for (const part of parts) {
+      // Each chunk must have visible content, not just tags
+      expect(hasVisibleContent(part)).toBe(true);
+    }
+  });
+
+  test('filters out chunks that would only contain empty tags', () => {
+    // Extreme case: maxLength so small that only tags fit
+    const html = '<b>text</b>';
+    const parts = splitHtmlIntoChunks(html, 50);
+    expect(parts.length).toBeGreaterThan(0);
+    for (const part of parts) {
+      expect(hasVisibleContent(part)).toBe(true);
+    }
+  });
+
+  test('preserves content across multiple block elements with small limit', () => {
+    const html = '<pre>A</pre><pre>B</pre><pre>C</pre>';
+    const parts = splitHtmlIntoChunks(html, 15);
+    // All parts should have visible content
+    for (const part of parts) {
+      expect(hasVisibleContent(part)).toBe(true);
+    }
+    // Content should be preserved
+    const allText = parts.join('').replace(/<[^>]+>/g, '');
+    expect(allText).toContain('A');
+    expect(allText).toContain('B');
+    expect(allText).toContain('C');
   });
 });
