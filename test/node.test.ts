@@ -9,8 +9,8 @@ jest.mock('../src/lib/markdownToTelegramHtml', () => ({
 }));
 
 jest.mock('../src/lib/htmlUtils', () => ({
-    safeTruncateHtml: jest.fn((html, limit) => html.substring(0, limit) + ' [...]'),
-    splitHtmlIntoChunks: jest.fn((html, limit) => ['Part 1', 'Part 2']),
+    safeTruncateHtml: jest.fn(() => 'truncated [...]'),
+    splitHtmlIntoChunks: jest.fn(() => ['Part 1', 'Part 2']),
 }));
 
 describe('MarkdownToTelegramHtml Node', () => {
@@ -219,7 +219,7 @@ describe('MarkdownToTelegramHtml Node', () => {
         (mockExecuteFunctions.continueOnFail as jest.Mock).mockReturnValue(false);
 
         const nodeError = new NodeOperationError(
-            { name: 'TestNode' } as any,
+            { name: 'TestNode' } as NodeOperationError['node'],
             'Test error'
         );
         nodeError.context = { someContext: 'value' };
