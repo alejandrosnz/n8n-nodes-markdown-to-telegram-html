@@ -26,6 +26,7 @@ This node is designed to:
 | **Output Field**           | `string`  | `telegram_html` | Field name in the output JSON containing the generated HTML.              |
 | **Message Limit Strategy** | `options` | `truncate`      | Strategy for handling messages exceeding Telegram's 4096-character limit. |
 | **Clean Escaped Characters** | `boolean` | `true` | Replace literal escape sequences (e.g. "\\n") with actual characters (e.g. "\n"). |
+| **Table Conversion Mode**  | `options` | `codeBlock`     | How to convert Markdown tables for better mobile readability.             |
 
 ---
 
@@ -63,7 +64,52 @@ When you want to send the entire message as multiple consecutive Telegram messag
 - In `truncate` mode, a ` [...]` suffix is appended.  
 - In `split` mode, each chunk becomes a separate output item — downstream nodes (like Telegram Send Message) will process each part independently.
 
-## 🔄 Conversions
+## � Table Conversion Modes
+
+Tables in Markdown are converted based on the selected **Table Conversion Mode** to improve readability on mobile devices:
+
+### 1. `codeBlock` — Monospaced Table (Default)
+
+**Behavior:**  
+Tables are wrapped in `<pre><code>` blocks, preserving the original table structure.
+
+**Output Example:**
+```
+| Header 1 | Header 2 |
+|----------|----------|
+| Cell A   | Cell B   |
+```
+
+**Use Case:**  
+When table structure is important and monospace formatting is acceptable.
+
+### 2. `horizontalList` — Compact List
+
+**Behavior:**  
+Each table row becomes a single list item, with the first column bolded.
+
+**Output Example:**
+• **Cell A** | Cell B
+• **Cell C** | Cell D
+
+**Use Case:**  
+For simple tables where rows represent items, improving mobile readability.
+
+### 3. `verticalList` — Detailed List
+
+**Behavior:**  
+Each table row becomes a nested list, with headers as sub-items.
+
+**Output Example:**
+• **Header 1**: Cell A
+    • Header 2: Cell B
+• **Header 1**: Cell C
+    • Header 2: Cell D
+
+**Use Case:**  
+For detailed tables where each row's data needs clear labeling.
+
+## �🔄 Conversions
 
 This node automatically converts standard Markdown elements into their Telegram-compatible HTML equivalents, including:
 
@@ -79,7 +125,7 @@ This node automatically converts standard Markdown elements into their Telegram-
 | Lists (`-`, `*`, `1.`) | Rendered with proper indentation |
 | `[text](url)` | `<a href="url">text</a>` |
 | `![alt](tg://emoji?id=12345)` | `<tg-emoji emoji-id="12345">🙂</tg-emoji>` |
-| Tables (`\| col1 \| col2 \|`) | `<pre><code>…</code></pre>` |
+| Tables (`\| col1 \| col2 \|`) | `<pre><code>…</code></pre>` (default), or list formats for mobile readability |
 | Spoilers (`\|\|secret\|\|`) | `<tg-spoiler>secret</tg-spoiler>` |
 | Horizontal rules (`---`) | `------` |
 

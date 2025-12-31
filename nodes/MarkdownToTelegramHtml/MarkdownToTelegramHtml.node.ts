@@ -101,7 +101,7 @@ export class MarkdownToTelegramHtml implements INodeType {
 							{
 								name: 'Compact List',
 								value: 'horizontalList',
-								description: 'Each row becomes a single list item: - **Cell1** | Cell2...',
+								description: 'Each row becomes a single list item: - **Cell1** | Cell2',
 							},
 							{
 								name: 'Detailed List',
