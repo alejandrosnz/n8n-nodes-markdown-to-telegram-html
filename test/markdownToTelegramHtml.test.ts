@@ -22,4 +22,27 @@ describe('markdownToTelegramHtml', () => {
     expect(html).toContain('| Val 1 | Val 2 |');
   });
 
+  test('converts markdown table to horizontal list', () => {
+    const md = `
+      | Col 1 | Col 2 |
+      |---|---|
+      | Val 1 | Val 2 |
+      `;
+    const html = markdownToTelegramHtml(md, 'horizontalList');
+    // Should be converted to list
+    expect(html).toContain('• <b>Val 1</b> | Val 2');
+  });
+
+  test('converts markdown table to vertical list', () => {
+    const md = `
+      | Col 1 | Col 2 |
+      |---|---|
+      | Val 1 | Val 2 |
+      `;
+    const html = markdownToTelegramHtml(md, 'verticalList');
+    // Should be converted to nested list
+    expect(html).toContain('• <b>Col 1</b>: Val 1');
+    expect(html).toContain('&#160;&#160;&#160;&#160;• Col 2: Val 2');
+  });
+
 });

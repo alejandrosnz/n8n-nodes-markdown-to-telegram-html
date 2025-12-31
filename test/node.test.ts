@@ -51,7 +51,7 @@ describe('MarkdownToTelegramHtml Node', () => {
 
         // Expectation: The double backslash n "Line 1\\nLine 2" becomes actual newline "Line 1\nLine 2".
         // JS string with newline is 'Line 1\nLine 2'.
-        expect(markdownToTelegramHtml).toHaveBeenCalledWith('Line 1\nLine 2');
+        expect(markdownToTelegramHtml).toHaveBeenCalledWith('Line 1\nLine 2', 'codeBlock');
     });
 
     it('should NOT unescape input when cleanEscapes option is false', async () => {
@@ -75,7 +75,7 @@ describe('MarkdownToTelegramHtml Node', () => {
         // Expectation: Input passed as is.
         // Input was "Line 1\\nLine 2" (double backslash n).
         // JS string: 'Line 1\\\\nLine 2'.
-        expect(markdownToTelegramHtml).toHaveBeenCalledWith('Line 1\\\\nLine 2');
+        expect(markdownToTelegramHtml).toHaveBeenCalledWith('Line 1\\\\nLine 2', 'codeBlock');
     });
 
     it('should apply cleanEscapes by default when options is empty', async () => {
@@ -95,7 +95,7 @@ describe('MarkdownToTelegramHtml Node', () => {
         await node.execute.call(mockExecuteFunctions as IExecuteFunctions);
 
         // cleanEscapes !== false, so it should clean
-        expect(markdownToTelegramHtml).toHaveBeenCalledWith('Line 1\nLine 2');
+        expect(markdownToTelegramHtml).toHaveBeenCalledWith('Line 1\nLine 2', 'codeBlock');
     });
 
     it('should use custom charLimit when provided', async () => {
@@ -117,6 +117,24 @@ describe('MarkdownToTelegramHtml Node', () => {
         await node.execute.call(mockExecuteFunctions as IExecuteFunctions);
 
         expect(safeTruncateHtml).toHaveBeenCalledWith('B'.repeat(100), 50);
+    });
+
+    it('should pass tableConversionMode to markdownToTelegramHtml', async () => {
+        const inputString = '| A | B |\n|---|---|\n| 1 | 2 |';
+        const inputData: INodeExecutionData[] = [{ json: {}, pairedItem: 0 }];
+        (mockExecuteFunctions.getInputData as jest.Mock).mockReturnValue(inputData);
+
+        (mockExecuteFunctions.getNodeParameter as jest.Mock).mockImplementation((paramName: string) => {
+            if (paramName === 'markdownText') return inputString;
+            if (paramName === 'outputField') return 'telegramHtml';
+            if (paramName === 'messageLimitStrategy') return 'truncate';
+            if (paramName === 'options') return { tableConversionMode: 'horizontalList' };
+            return undefined;
+        });
+
+        await node.execute.call(mockExecuteFunctions as IExecuteFunctions);
+
+        expect(markdownToTelegramHtml).toHaveBeenCalledWith(inputString, 'horizontalList');
     });
 
     it('should cap charLimit to 4096 even if user provides a larger value', async () => {
