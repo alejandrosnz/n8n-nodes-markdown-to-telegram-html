@@ -106,12 +106,12 @@ export class MarkdownToTelegramHtml implements INodeType {
 							{
 								name: 'Detailed List',
 								value: 'detailedList',
-								description: 'Each row becomes a nested list with headers: - Value1\n  - Header2: Value2',
+								description: 'Each row becomes a nested list with headers: - Value1 - Header2: Value2',
 							},
 							{
 								name: 'Detailed List without Headers',
 								value: 'detailedListNoHeaders',
-								description: 'Each row becomes a nested list without headers: - Value1\n  - Value2',
+								description: 'Each row becomes a nested list without headers: - Value1 - Value2',
 							},
 						],
 						description: 'How to convert Markdown tables for better mobile readability',

@@ -5,6 +5,7 @@ import { safeTruncateHtml, splitHtmlIntoChunks } from '../src/lib/htmlUtils';
 
 // Mock the library functions
 jest.mock('../src/lib/markdownToTelegramHtml', () => ({
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     markdownToTelegramHtml: jest.fn((text, options) => `Converted: ${text}`),
 }));
 
