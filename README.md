@@ -83,31 +83,45 @@ Tables are wrapped in `<pre><code>` blocks, preserving the original table struct
 **Use Case:**  
 When table structure is important and monospace formatting is acceptable.
 
-### 2. `horizontalList` — Compact List
+### 2. `compactList` — Compact List
 
 **Behavior:**  
 Each table row becomes a single list item, with the first column bolded.
 
 **Output Example:**
-• **Cell A** | Cell B
-• **Cell C** | Cell D
+• **Cell A** — Cell B
+• **Cell C** — Cell D
 
 **Use Case:**  
 For simple tables where rows represent items, improving mobile readability.
 
-### 3. `verticalList` — Detailed List
+### 3. `detailedList` — Detailed List
 
 **Behavior:**  
-Each table row becomes a nested list, with headers as sub-items.
+Each table row becomes a nested list, with the first column value as the main item and subsequent columns as sub-items with headers.
 
 **Output Example:**
-• **Header 1**: Cell A
+• Cell A
     • Header 2: Cell B
-• **Header 1**: Cell C
+• Cell C
     • Header 2: Cell D
 
 **Use Case:**  
-For detailed tables where each row's data needs clear labeling.
+For detailed tables where each row's data needs clear labeling with context.
+
+### 4. `detailedListNoHeaders` — Detailed List without Headers
+
+**Behavior:**  
+Each table row becomes a nested list, with the first column value as the main item and subsequent columns as sub-items without headers.
+
+**Output Example:**
+• Cell A
+    • Cell B
+• Cell C
+    • Cell D
+
+**Use Case:**  
+For tables where the sub-item values are self-explanatory or when headers would be redundant.
 
 ## �🔄 Conversions
 

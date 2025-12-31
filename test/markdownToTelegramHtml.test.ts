@@ -22,27 +22,39 @@ describe('markdownToTelegramHtml', () => {
     expect(html).toContain('| Val 1 | Val 2 |');
   });
 
-  test('converts markdown table to horizontal list', () => {
+  test('converts markdown table to compact list', () => {
     const md = `
       | Col 1 | Col 2 |
       |---|---|
       | Val 1 | Val 2 |
       `;
-    const html = markdownToTelegramHtml(md, 'horizontalList');
+    const html = markdownToTelegramHtml(md, { mode: 'compactList' });
     // Should be converted to list
-    expect(html).toContain('• <b>Val 1</b> | Val 2');
+    expect(html).toContain('• <b>Val 1</b> — Val 2');
   });
 
-  test('converts markdown table to vertical list', () => {
+  test('converts markdown table to detailed list', () => {
     const md = `
       | Col 1 | Col 2 |
       |---|---|
       | Val 1 | Val 2 |
       `;
-    const html = markdownToTelegramHtml(md, 'verticalList');
+    const html = markdownToTelegramHtml(md, { mode: 'detailedList' });
     // Should be converted to nested list
-    expect(html).toContain('• <b>Col 1</b>: Val 1');
+    expect(html).toContain('• Val 1');
     expect(html).toContain('&#160;&#160;&#160;&#160;• Col 2: Val 2');
+  });
+
+  test('converts markdown table to detailed list without headers', () => {
+    const md = `
+      | Col 1 | Col 2 |
+      |---|---|
+      | Val 1 | Val 2 |
+      `;
+    const html = markdownToTelegramHtml(md, { mode: 'detailedList', includeHeaders: false });
+    // Should be converted to nested list without headers
+    expect(html).toContain('• Val 1');
+    expect(html).toContain('&#160;&#160;&#160;&#160;• Val 2');
   });
 
 });

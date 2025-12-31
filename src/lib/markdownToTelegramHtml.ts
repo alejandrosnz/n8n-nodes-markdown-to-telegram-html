@@ -8,7 +8,7 @@ function escapeHtml(text: string): string {
     return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-function preprocessTables(markdown: string, mode: string): string {
+function preprocessTables(markdown: string, mode: string, includeHeaders?: boolean): string {
     if (mode === 'codeBlock') return markdown;
 
     // Simple table detection: lines starting with |, separated by --- line
@@ -34,16 +34,21 @@ function preprocessTables(markdown: string, mode: string): string {
                     const headers = tableLines[0].split('|').slice(1, -1).map(h => h.trim());
                     const dataRows = tableLines.slice(2).map(row => row.split('|').slice(1, -1).map(cell => cell.trim()));
 
-                    if (mode === 'horizontalList') {
+                    if (mode === 'compactList') {
                         for (const row of dataRows) {
                             const cells = row.map((cell, index) => index === 0 ? `**${escapeHtml(cell)}**` : escapeHtml(cell));
-                            result.push(`- ${cells.join(' | ')}`);
+                            result.push(`- ${cells.join(' — ')}`);
                         }
-                    } else if (mode === 'verticalList') {
+                    } else if (mode === 'detailedList' || mode === 'detailedListNoHeaders') {
+                        const shouldIncludeHeaders = includeHeaders !== undefined ? includeHeaders : (mode === 'detailedList');
                         for (const row of dataRows) {
-                            result.push(`- **${escapeHtml(headers[0])}**: ${escapeHtml(row[0])}`);
+                            result.push(`- ${escapeHtml(row[0])}`);
                             for (let k = 1; k < headers.length; k++) {
-                                result.push(`  - ${escapeHtml(headers[k])}: ${escapeHtml(row[k])}`);
+                                if (shouldIncludeHeaders) {
+                                    result.push(`  - ${escapeHtml(headers[k])}: ${escapeHtml(row[k])}`);
+                                } else {
+                                    result.push(`  - ${escapeHtml(row[k])}`);
+                                }
                             }
                         }
                     }
@@ -59,10 +64,11 @@ function preprocessTables(markdown: string, mode: string): string {
     return result.join('\n');
 }
 
-export function markdownToTelegramHtml(markdown: string, tableConversionMode: string = 'codeBlock'): string {
+export function markdownToTelegramHtml(markdown: string, options: { mode?: string, includeHeaders?: boolean } = {}): string {
+    const { mode = 'codeBlock', includeHeaders } = options;
     if (!markdown || typeof markdown !== 'string') return '';
 
-    const preprocessed = preprocessTables(markdown, tableConversionMode);
+    const preprocessed = preprocessTables(markdown, mode, includeHeaders);
 
     const processor = unified()
         .use(remarkParse)

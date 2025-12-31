@@ -100,13 +100,18 @@ export class MarkdownToTelegramHtml implements INodeType {
 							},
 							{
 								name: 'Compact List',
-								value: 'horizontalList',
-								description: 'Each row becomes a single list item: - **Cell1** | Cell2',
+								value: 'compactList',
+								description: 'Each row becomes a single list item: - **Cell1** — Cell2',
 							},
 							{
 								name: 'Detailed List',
-								value: 'verticalList',
-								description: 'Each row becomes a nested list item with sub-points',
+								value: 'detailedList',
+								description: 'Each row becomes a nested list with headers: - Value1\n  - Header2: Value2',
+							},
+							{
+								name: 'Detailed List without Headers',
+								value: 'detailedListNoHeaders',
+								description: 'Each row becomes a nested list without headers: - Value1\n  - Value2',
 							},
 						],
 						description: 'How to convert Markdown tables for better mobile readability',
@@ -134,9 +139,11 @@ export class MarkdownToTelegramHtml implements INodeType {
 
 				let charLimit = (options.charLimit as number) || 4096;
 				const tableConversionMode = (options.tableConversionMode as string) || 'codeBlock';
+				const mode = tableConversionMode === 'detailedListNoHeaders' ? 'detailedList' : tableConversionMode;
+				const includeHeaders = tableConversionMode !== 'detailedListNoHeaders';
 				// Ensure charLimit never exceeds 4096 (Telegram's maximum)
 				charLimit = Math.min(charLimit, 4096);
-				const telegramHtml = markdownToTelegramHtml(markdownText, tableConversionMode);
+				const telegramHtml = markdownToTelegramHtml(markdownText, { mode, includeHeaders });
 
 				// If message is under Telegram limit, just return as single item
 				if (telegramHtml.length <= charLimit) {
