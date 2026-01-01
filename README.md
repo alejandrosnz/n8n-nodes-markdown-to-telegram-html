@@ -20,13 +20,13 @@ This node is designed to:
 
 ## ⚙️ Node Properties
 
-| Property                   | Type      | Default         | Description                                                               |
-|----------------------------|-----------|-----------------|---------------------------------------------------------------------------|
-| **Markdown Text**          | `string`  | —               | The Markdown content to convert.                                          |
-| **Output Field**           | `string`  | `telegram_html` | Field name in the output JSON containing the generated HTML.              |
-| **Message Limit Strategy** | `options` | `truncate`      | Strategy for handling messages exceeding Telegram's 4096-character limit. |
-| **Clean Escaped Characters** | `boolean` | `true` | Replace literal escape sequences (e.g. "\\n") with actual characters (e.g. "\n"). |
-
+| Property                     | Type      | Default         | Description                                                                                               |
+|------------------------------|-----------|-----------------|-----------------------------------------------------------------------------------------------------------|
+| **Markdown Text**            | `string`  | —               | The Markdown content to convert.                                                                          |
+| **Output Field**             | `string`  | `telegram_html` | Field name in the output JSON containing the generated HTML.                                              |
+| **Message Limit Strategy**   | `options` | `truncate`      | Strategy for handling messages exceeding Telegram's 4096-character limit.                                 |
+| **Clean Escaped Characters** | `boolean` | `true`          | Replace literal escape sequences (e.g. "\\n") with actual characters (e.g. "\n").                         |
+| **Table Conversion Mode**    | `options` | `codeBlock`     | How to display Markdown tables: Monospaced Table, Compact View, Detail View, or Detail View (No Headers). |
 ---
 
 ## 🧩 Message Limit Strategies
@@ -79,11 +79,90 @@ This node automatically converts standard Markdown elements into their Telegram-
 | Lists (`-`, `*`, `1.`) | Rendered with proper indentation |
 | `[text](url)` | `<a href="url">text</a>` |
 | `![alt](tg://emoji?id=12345)` | `<tg-emoji emoji-id="12345">🙂</tg-emoji>` |
-| Tables (`\| col1 \| col2 \|`) | `<pre><code>…</code></pre>` |
+| Tables (via **Table Conversion Mode**) | See table modes below |
 | Spoilers (`\|\|secret\|\|`) | `<tg-spoiler>secret</tg-spoiler>` |
 | Horizontal rules (`---`) | `------` |
 
 > ⚙️ All unsupported Markdown features are safely escaped or ignored to ensure Telegram compatibility.
+
+---
+
+## 📊 Table Conversion Modes
+
+Tables can be displayed in four different ways using the **Table Conversion Mode** option in Advanced Fields:
+
+### 1. Monospaced Table (Default)
+
+**Behavior:** Classic monospaced table in `<pre><code>` with pipes and separator line.
+
+**Input:**
+```markdown
+| Name | Age | City |
+|------|-----|------|
+| Alice | 30 | NYC |
+| Bob | 25 | LA |
+```
+
+**Output:**
+```html
+<pre><code>| Name | Age | City |
+| --- | --- | --- |
+| Alice | 30 | NYC |
+| Bob | 25 | LA |</code></pre>
+```
+
+**Best for:** Technical tables, data with alignment requirements, preserving original table structure.
+
+---
+
+### 2. Compact View
+
+**Behavior:** Each row as a list item with em dash (—) separator between cells. First cell is bold. Empty cells are skipped.
+
+**Output:**
+```html
+- <b>Name</b> — Age — City
+- <b>Alice</b> — 30 — NYC
+- <b>Bob</b> — 25 — LA
+```
+
+**Best for:** Quick mobile scanning, simple row data, minimal formatting.
+
+---
+
+### 3. Detail View
+
+**Behavior:** Nested list with column headers as labels. First cell is bold with header name. Subsequent cells indented with header names. Empty cells are skipped.
+
+**Output:**
+```html
+- <b>Name: Alice</b>
+  - Age: 30
+  - City: NYC
+- <b>Name: Bob</b>
+  - Age: 25
+  - City: LA
+```
+
+**Best for:** Key-value presentations, form-like data, detailed information cards.
+
+---
+
+### 4. Detail View (No Headers)
+
+**Behavior:** Nested list without header names. First value is bold. Subsequent values indented. Empty cells are skipped.
+
+**Output:**
+```html
+- <b>Alice</b>
+  - 30
+  - NYC
+- <b>Bob</b>
+  - 25
+  - LA
+```
+
+**Best for:** Clean card layouts, minimal visual hierarchy, product listings.
 
 ---
 

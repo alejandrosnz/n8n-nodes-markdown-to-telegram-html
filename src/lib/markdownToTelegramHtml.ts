@@ -4,7 +4,11 @@ import remarkGfm from 'remark-gfm';
 import type { Node } from './ast';
 import { nodeToHtml } from './ast';
 
-export function markdownToTelegramHtml(markdown: string): string {
+export interface MarkdownOptions {
+    tableConversionMode?: string;
+}
+
+export function markdownToTelegramHtml(markdown: string, options?: MarkdownOptions): string {
     if (!markdown || typeof markdown !== 'string') return '';
 
     const processor = unified()
@@ -13,5 +17,5 @@ export function markdownToTelegramHtml(markdown: string): string {
 
     const tree = processor.parse(markdown) as unknown as Node;
 
-    return nodeToHtml(tree);
+    return nodeToHtml(tree, {}, options);
 }
