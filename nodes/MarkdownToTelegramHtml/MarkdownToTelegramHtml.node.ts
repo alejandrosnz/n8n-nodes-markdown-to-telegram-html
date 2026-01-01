@@ -87,6 +87,35 @@ export class MarkdownToTelegramHtml implements INodeType {
 						},
 						description: 'Maximum character limit for Telegram messages. Telegram allows max 4096 characters per message.',
 					},
+					{
+						displayName: 'Table Conversion Mode',
+						name: 'tableConversionMode',
+						type: 'options',
+						options: [
+							{
+								name: 'Monospaced Table',
+								value: 'codeBlock',
+								description: 'Classic tabular structure inside <pre><code>',
+							},
+							{
+								name: 'Compact View',
+								value: 'compactView',
+								description: 'Each row is one line: - **Cell1** — Cell2 — Cell3',
+							},
+							{
+								name: 'Detail View',
+								value: 'detailView',
+								description: 'Nested list: - **Header1: Cell1** followed by - Header2: Cell2',
+							},
+							{
+								name: 'Detail View (No Headers)',
+								value: 'detailViewNoHeaders',
+								description: 'Nested list without repeating header names',
+							},
+						],
+						default: 'codeBlock',
+						description: 'How to display Markdown tables in the output',
+					},
 				],
 			},
 		],
@@ -111,7 +140,8 @@ export class MarkdownToTelegramHtml implements INodeType {
 				let charLimit = (options.charLimit as number) || 4096;
 				// Ensure charLimit never exceeds 4096 (Telegram's maximum)
 				charLimit = Math.min(charLimit, 4096);
-				const telegramHtml = markdownToTelegramHtml(markdownText);
+				const tableConversionMode = (options.tableConversionMode as string) || 'codeBlock';
+				const telegramHtml = markdownToTelegramHtml(markdownText, { tableConversionMode });
 
 				// If message is under Telegram limit, just return as single item
 				if (telegramHtml.length <= charLimit) {

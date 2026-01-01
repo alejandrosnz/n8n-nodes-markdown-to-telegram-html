@@ -15,6 +15,10 @@ export interface TableNode extends Node {
     rows?: Node[];
 }
 
+export interface MarkdownOptions {
+    tableConversionMode?: string;
+}
+
 // --- Helper function for escaping HTML special characters ---
 export function escapeHtml(text: unknown): string {
     if (typeof text !== 'string') return '';
@@ -66,17 +70,136 @@ export function processSpoilers(text: string): string {
     });
 }
 
+// --- Table conversion functions ---
+
+// Convert table to classic pre-formatted code block
+function tableToCodeBlock(rows: string[][], hasExplicitHeader: boolean): string {
+    const formattedRows: string[] = [];
+    
+    for (const row of rows) {
+        // Escape pipe chars for visual table structure
+        const escapedCells = row.map(cell => cell.replace(/\|/g, '\\|'));
+        formattedRows.push('| ' + escapedCells.join(' | ') + ' |');
+    }
+
+    // Add separator after header if we have 2+ rows
+    if (hasExplicitHeader && formattedRows.length >= 2) {
+        const headerCols = rows[0].length;
+        const separator = `| ${Array(headerCols).fill('---').join(' | ')} |`;
+        formattedRows.splice(1, 0, separator);
+    }
+
+    const tableText = formattedRows.join('\n');
+    return `<pre><code>${escapeHtml(tableText)}</code></pre>\n`;
+}
+
+// Convert table to compact view: - **Cell1** — Cell2 — Cell3
+function tableToCompactView(rows: string[][]): string {
+    const lines: string[] = [];
+    
+    for (const row of rows) {
+        const nonEmptyCells = row.filter(cell => cell.trim() !== '');
+        if (nonEmptyCells.length === 0) continue;
+        
+        const parts: string[] = [];
+        for (let i = 0; i < nonEmptyCells.length; i++) {
+            const cell = escapeHtml(nonEmptyCells[i]);
+            if (i === 0) {
+                parts.push(`<b>${cell}</b>`);
+            } else {
+                parts.push(cell);
+            }
+        }
+        
+        lines.push('- ' + parts.join(' \u2014 '));
+    }
+    
+    return lines.join('\n') + '\n\n';
+}
+
+// Convert table to detail view with headers: - **Header1: Cell1** followed by nested items
+function tableToDetailView(rows: string[][], hasExplicitHeader: boolean): string {
+    if (rows.length === 0) return '';
+    
+    const lines: string[] = [];
+    const headers = hasExplicitHeader && rows.length > 1 ? rows[0] : null;
+    const dataRows = hasExplicitHeader && rows.length > 1 ? rows.slice(1) : rows;
+    
+    for (const row of dataRows) {
+        const nonEmptyCells: Array<{ value: string; header: string | null }> = [];
+        
+        for (let i = 0; i < row.length; i++) {
+            if (row[i].trim() !== '') {
+                nonEmptyCells.push({
+                    value: row[i],
+                    header: headers ? (headers[i] || null) : null
+                });
+            }
+        }
+        
+        if (nonEmptyCells.length === 0) continue;
+        
+        // First cell: - **Header: Value**
+        const first = nonEmptyCells[0];
+        const firstValue = escapeHtml(first.value);
+        if (first.header) {
+            const firstHeader = escapeHtml(first.header);
+            lines.push(`- <b>${firstHeader}: ${firstValue}</b>`);
+        } else {
+            lines.push(`- <b>${firstValue}</b>`);
+        }
+        
+        // Subsequent cells: indented with 2 spaces
+        for (let i = 1; i < nonEmptyCells.length; i++) {
+            const cell = nonEmptyCells[i];
+            const cellValue = escapeHtml(cell.value);
+            if (cell.header) {
+                const cellHeader = escapeHtml(cell.header);
+                lines.push(`  - ${cellHeader}: ${cellValue}`);
+            } else {
+                lines.push(`  - ${cellValue}`);
+            }
+        }
+    }
+    
+    return lines.join('\n') + '\n\n';
+}
+
+// Convert table to detail view without headers: - **Value1** followed by nested items
+function tableToDetailViewNoHeaders(rows: string[][]): string {
+    if (rows.length === 0) return '';
+    
+    const lines: string[] = [];
+    
+    for (const row of rows) {
+        const nonEmptyCells = row.filter(cell => cell.trim() !== '');
+        if (nonEmptyCells.length === 0) continue;
+        
+        // First cell: - **Value** (bold, no header)
+        const firstValue = escapeHtml(nonEmptyCells[0]);
+        lines.push(`- <b>${firstValue}</b>`);
+        
+        // Subsequent cells: indented with 2 spaces, no header names
+        for (let i = 1; i < nonEmptyCells.length; i++) {
+            const cellValue = escapeHtml(nonEmptyCells[i]);
+            lines.push(`  - ${cellValue}`);
+        }
+    }
+    
+    return lines.join('\n') + '\n\n';
+}
+
 // --- Main function to convert AST nodes to Telegram HTML ---
-export function nodeToHtml(node: Node, context: { listDepth?: number; parent?: Node } = {}): string {
+export function nodeToHtml(node: Node, context: { listDepth?: number; parent?: Node } = {}, options?: MarkdownOptions): string {
     switch (node.type) {
         case 'root':
-            return node.children ? node.children.map((child) => nodeToHtml(child, context)).join('').trim() : '';
+            return node.children ? node.children.map((child) => nodeToHtml(child, context, options)).join('').trim() : '';
 
         case 'paragraph':
-            return node.children ? node.children.map((child) => nodeToHtml(child, context)).join('') + '\n\n' : '\n\n';
+            return node.children ? node.children.map((child) => nodeToHtml(child, context, options)).join('') + '\n\n' : '\n\n';
 
         case 'heading': {
-            const headingContent = node.children ? node.children.map((child) => nodeToHtml(child, context)).join('') : '';
+            const headingContent = node.children ? node.children.map((child) => nodeToHtml(child, context, options)).join('') : '';
             return `<b>${headingContent}</b>\n\n`;
         }
 
@@ -86,13 +209,13 @@ export function nodeToHtml(node: Node, context: { listDepth?: number; parent?: N
         }
 
         case 'emphasis':
-            return `<i>${node.children ? node.children.map((child) => nodeToHtml(child, context)).join('') : ''}</i>`;
+            return `<i>${node.children ? node.children.map((child) => nodeToHtml(child, context, options)).join('') : ''}</i>`;
 
         case 'strong':
-            return `<b>${node.children ? node.children.map((child) => nodeToHtml(child, context)).join('') : ''}</b>`;
+            return `<b>${node.children ? node.children.map((child) => nodeToHtml(child, context, options)).join('') : ''}</b>`;
 
         case 'delete':
-            return `<s>${node.children ? node.children.map((child) => nodeToHtml(child, context)).join('') : ''}</s>`;
+            return `<s>${node.children ? node.children.map((child) => nodeToHtml(child, context, options)).join('') : ''}</s>`;
 
         case 'inlineCode':
             return `<code>${escapeHtml(node.value || '')}</code>`;
@@ -105,7 +228,7 @@ export function nodeToHtml(node: Node, context: { listDepth?: number; parent?: N
 
         case 'link': {
             const url = escapeHtml(node.url || '');
-            const linkText = node.children ? node.children.map((child) => nodeToHtml(child, context)).join('') : '';
+            const linkText = node.children ? node.children.map((child) => nodeToHtml(child, context, options)).join('') : '';
             return `<a href="${url}">${linkText}</a>`;
         }
 
@@ -161,17 +284,17 @@ export function nodeToHtml(node: Node, context: { listDepth?: number; parent?: N
                 removeMarker(node);
             }
 
-            const content = node.children ? node.children.map((child) => nodeToHtml(child, context)).join('') : '';
+            const content = node.children ? node.children.map((child) => nodeToHtml(child, context, options)).join('') : '';
             const openTag = isExpandable ? '<blockquote expandable>' : '<blockquote>';
             const closeTag = '</blockquote>';
-            return `${openTag}${content.trim()}${closeTag}\n`;
+            return `${openTag}${content.trim()}${closeTag}\n\n`;
         }
 
         case 'list': {
             const currentDepth = context.listDepth || 0;
             const newContext = { ...context, listDepth: currentDepth + 1, parent: node };
             const listItems = node.children ? node.children
-                .map((child) => nodeToHtml(child, newContext))
+                .map((child) => nodeToHtml(child, newContext, options))
                 .join('') : '';
             return currentDepth === 0 ? listItems.trimEnd() + '\n\n' : listItems;
         }
@@ -193,13 +316,13 @@ export function nodeToHtml(node: Node, context: { listDepth?: number; parent?: N
                 for (let i = 0; i < node.children.length; i++) {
                     const child = node.children[i];
                     if (child.type === 'paragraph') {
-                        itemContent += child.children ? child.children.map((c) => nodeToHtml(c, context)).join('') : '';
+                        itemContent += child.children ? child.children.map((c) => nodeToHtml(c, context, options)).join('') : '';
                     } else if (child.type === 'list') {
                         const nestedContext = { listDepth: depth, parent: child };
-                        const nestedListContent = nodeToHtml(child, nestedContext);
+                        const nestedListContent = nodeToHtml(child, nestedContext, options);
                         itemContent += '\n' + nestedListContent.trimEnd();
                     } else {
-                        itemContent += nodeToHtml(child, context);
+                        itemContent += nodeToHtml(child, context, options);
                     }
                 }
             }
@@ -211,65 +334,65 @@ export function nodeToHtml(node: Node, context: { listDepth?: number; parent?: N
             return '------\n\n';
 
         case 'table': {
-            // Robust table handling: support multiple AST shapes and clean cell text
-            const rows: string[] = [];
-
+            const mode = options?.tableConversionMode || 'codeBlock';
+            
             // Helper to extract cells from a row node
             const extractCells = (rowNode: Node): string[] => {
                 const cells: string[] = [];
                 if (!rowNode) return cells;
-                // rowNode.children normally contains table cell nodes
                 if (rowNode.children) {
                     for (const cellNode of rowNode.children) {
-                        // getNodeText will pull the raw textual content of the cell (including nested strong/em nodes)
                         let cellText = getNodeText(cellNode) || '';
-                        // replace internal newlines with space and collapse multiple spaces
                         cellText = cellText.replace(/\n+/g, ' ').replace(/\s+/g, ' ').trim();
-                        // Escape any pipe chars so the visual table doesn't break
-                        cellText = cellText.replace(/\|/g, '\\|');
-                        // Final trim
                         cells.push(cellText);
                     }
                 }
                 return cells;
             };
 
-            // Some parsers put header/body as separate properties (e.g., remark)
+            // Extract all rows from the table
+            const allRows: string[][] = [];
+            let hasExplicitHeader = false;
+
             if ((node as TableNode).header && Array.isArray((node as TableNode).header)) {
                 const headerRow = (node as TableNode).header![0];
                 const headerCells = extractCells(headerRow);
-                if (headerCells.length > 0) rows.push('| ' + headerCells.join(' | ') + ' |');
+                if (headerCells.length > 0) {
+                    allRows.push(headerCells);
+                    hasExplicitHeader = true;
+                }
 
                 if ((node as TableNode).rows && Array.isArray((node as TableNode).rows)) {
                     for (const r of (node as TableNode).rows!) {
                         const cells = extractCells(r);
-                        if (cells.length > 0) rows.push('| ' + cells.join(' | ') + ' |');
+                        if (cells.length > 0) allRows.push(cells);
                     }
                 }
-
             } else if (node.children && node.children.length > 0) {
-                // Fallback: assume every child is a row (typical mdast: table -> tableRow -> tableCell)
                 for (const rowNode of node.children) {
                     const cells = extractCells(rowNode);
-                    if (cells.length > 0) {
-                        rows.push('| ' + cells.join(' | ') + ' |');
-                    }
+                    if (cells.length > 0) allRows.push(cells);
+                }
+                // Check if we have a separator line (mdast typically includes it as a row with "---")
+                if (allRows.length >= 2) {
+                    hasExplicitHeader = true;
                 }
             }
 
-            // If we have at least a header + one row, ensure there's a separator line after the first row
-            if (rows.length >= 2) {
-                // Count columns from first row
-                const headerCols = rows[0].split('|').length - 2; // subtract the surrounding pipes
-                const separator = `| ${Array(headerCols).fill('---').join(' | ')} |`;
-                rows.splice(1, 0, separator);
+            if (allRows.length === 0) return '';
+
+            // Route to appropriate conversion function
+            switch (mode) {
+                case 'compactView':
+                    return tableToCompactView(allRows);
+                case 'detailView':
+                    return tableToDetailView(allRows, hasExplicitHeader);
+                case 'detailViewNoHeaders':
+                    return tableToDetailViewNoHeaders(allRows);
+                case 'codeBlock':
+                default:
+                    return tableToCodeBlock(allRows, hasExplicitHeader);
             }
-
-            if (rows.length === 0) return '';
-
-            const tableText = rows.join('\n');
-            // Escape for HTML since this will be placed inside <pre><code>
-            return `<pre><code>${escapeHtml(tableText)}</code></pre>\n`;
         }
 
 
@@ -278,7 +401,7 @@ export function nodeToHtml(node: Node, context: { listDepth?: number; parent?: N
 
         default:
             if (node.children) {
-                return node.children.map((child) => nodeToHtml(child, context)).join('');
+                return node.children.map((child) => nodeToHtml(child, context, options)).join('');
             }
             return '';
     }

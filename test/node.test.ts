@@ -51,7 +51,7 @@ describe('MarkdownToTelegramHtml Node', () => {
 
         // Expectation: The double backslash n "Line 1\\nLine 2" becomes actual newline "Line 1\nLine 2".
         // JS string with newline is 'Line 1\nLine 2'.
-        expect(markdownToTelegramHtml).toHaveBeenCalledWith('Line 1\nLine 2');
+        expect(markdownToTelegramHtml).toHaveBeenCalledWith('Line 1\nLine 2', { tableConversionMode: 'codeBlock' });
     });
 
     it('should NOT unescape input when cleanEscapes option is false', async () => {
@@ -75,7 +75,7 @@ describe('MarkdownToTelegramHtml Node', () => {
         // Expectation: Input passed as is.
         // Input was "Line 1\\nLine 2" (double backslash n).
         // JS string: 'Line 1\\\\nLine 2'.
-        expect(markdownToTelegramHtml).toHaveBeenCalledWith('Line 1\\\\nLine 2');
+        expect(markdownToTelegramHtml).toHaveBeenCalledWith('Line 1\\\\nLine 2', { tableConversionMode: 'codeBlock' });
     });
 
     it('should apply cleanEscapes by default when options is empty', async () => {
@@ -95,7 +95,7 @@ describe('MarkdownToTelegramHtml Node', () => {
         await node.execute.call(mockExecuteFunctions as IExecuteFunctions);
 
         // cleanEscapes !== false, so it should clean
-        expect(markdownToTelegramHtml).toHaveBeenCalledWith('Line 1\nLine 2');
+        expect(markdownToTelegramHtml).toHaveBeenCalledWith('Line 1\nLine 2', { tableConversionMode: 'codeBlock' });
     });
 
     it('should use custom charLimit when provided', async () => {
