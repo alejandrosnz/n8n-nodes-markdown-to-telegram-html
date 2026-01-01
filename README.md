@@ -86,11 +86,11 @@ When table structure is important and monospace formatting is acceptable.
 ### 2. `compactList` — Compact List
 
 **Behavior:**  
-Each table row becomes a single list item, with the first column bolded.
+Each table row becomes a single list item, with the first column bolded and using en dash (–) as separator.
 
 **Output Example:**
-• **Cell A** — Cell B
-• **Cell C** — Cell D
+• **Cell A** – Cell B
+• **Cell C** – Cell D
 
 **Use Case:**  
 For simple tables where rows represent items, improving mobile readability.

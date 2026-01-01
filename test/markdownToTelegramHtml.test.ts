@@ -30,7 +30,7 @@ describe('markdownToTelegramHtml', () => {
       `;
     const html = markdownToTelegramHtml(md, { mode: 'compactList' });
     // Should be converted to list
-    expect(html).toContain('• <b>Val 1</b> — Val 2');
+    expect(html).toContain('• <b>Val 1</b> – Val 2');
   });
 
   test('converts markdown table to detailed list', () => {

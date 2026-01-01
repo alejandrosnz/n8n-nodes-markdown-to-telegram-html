@@ -37,7 +37,7 @@ function preprocessTables(markdown: string, mode: string, includeHeaders?: boole
                     if (mode === 'compactList') {
                         for (const row of dataRows) {
                             const cells = row.map((cell, index) => index === 0 ? `**${escapeHtml(cell)}**` : escapeHtml(cell));
-                            result.push(`- ${cells.join(' — ')}`);
+                            result.push(`- ${cells.join(' – ')}`);
                         }
                     } else if (mode === 'detailedList' || mode === 'detailedListNoHeaders') {
                         const shouldIncludeHeaders = includeHeaders !== undefined ? includeHeaders : (mode === 'detailedList');
