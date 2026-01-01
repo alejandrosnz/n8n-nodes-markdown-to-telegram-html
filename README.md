@@ -20,12 +20,13 @@ This node is designed to:
 
 ## ⚙️ Node Properties
 
-| Property                   | Type      | Default         | Description                                                               |
-|----------------------------|-----------|-----------------|---------------------------------------------------------------------------|
-| **Markdown Text**          | `string`  | —               | The Markdown content to convert.                                          |
-| **Output Field**           | `string`  | `telegram_html` | Field name in the output JSON containing the generated HTML.              |
-| **Message Limit Strategy** | `options` | `truncate`      | Strategy for handling messages exceeding Telegram's 4096-character limit. |
-| **Clean Escaped Characters** | `boolean` | `true` | Replace literal escape sequences (e.g. "\\n") with actual characters (e.g. "\n"). || **Table Conversion Mode** | `options` | `codeBlock` | How to display Markdown tables: `codeBlock`, `compactView`, `detailView`, or `detailViewNoHeaders`. |
+| Property                     | Type      | Default         | Description                                                                                               |
+|------------------------------|-----------|-----------------|-----------------------------------------------------------------------------------------------------------|
+| **Markdown Text**            | `string`  | —               | The Markdown content to convert.                                                                          |
+| **Output Field**             | `string`  | `telegram_html` | Field name in the output JSON containing the generated HTML.                                              |
+| **Message Limit Strategy**   | `options` | `truncate`      | Strategy for handling messages exceeding Telegram's 4096-character limit.                                 |
+| **Clean Escaped Characters** | `boolean` | `true`          | Replace literal escape sequences (e.g. "\\n") with actual characters (e.g. "\n").                         |
+| **Table Conversion Mode**    | `options` | `codeBlock`     | How to display Markdown tables: Monospaced Table, Compact View, Detail View, or Detail View (No Headers). |
 ---
 
 ## 🧩 Message Limit Strategies
@@ -162,12 +163,6 @@ Tables can be displayed in four different ways using the **Table Conversion Mode
 ```
 
 **Best for:** Clean card layouts, minimal visual hierarchy, product listings.
-
----
-
-> ⚠️ All modes automatically escape HTML special characters in cell content for security.
-> All list-based modes skip empty cells to maintain clean formatting.
-> Table conversion happens at the AST level, ensuring accurate message size calculation for split/truncate strategies.
 
 ---
 
