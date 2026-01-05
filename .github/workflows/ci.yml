@@ -62,14 +62,26 @@ jobs:
           if [ -f coverage/coverage-summary.json ]; then
             echo "### Coverage" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-            node -p "
-              const coverage = require('./coverage/coverage-summary.json');
-              const total = coverage.total;
-              'Lines:      ' + total.lines.pct + '%\n' +
-              'Statements: ' + total.statements.pct + '%\n' +
-              'Functions:  ' + total.functions.pct + '%\n' +
-              'Branches:   ' + total.branches.pct + '%'
-            " >> $GITHUB_STEP_SUMMARY
-            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            
+            # Extract coverage percentages using jq or node
+            if command -v jq &> /dev/null; then
+              LINES=$(jq -r '.total.lines.pct' coverage/coverage-summary.json)
+              STATEMENTS=$(jq -r '.total.statements.pct' coverage/coverage-summary.json)
+              FUNCTIONS=$(jq -r '.total.functions.pct' coverage/coverage-summary.json)
+              BRANCHES=$(jq -r '.total.branches.pct' coverage/coverage-summary.json)
+            else
+              LINES=$(node -pe "require('./coverage/coverage-summary.json').total.lines.pct")
+              STATEMENTS=$(node -pe "require('./coverage/coverage-summary.json').total.statements.pct")
+              FUNCTIONS=$(node -pe "require('./coverage/coverage-summary.json').total.functions.pct")
+              BRANCHES=$(node -pe "require('./coverage/coverage-summary.json').total.branches.pct")
+            fi
+            
+            echo "Lines:      ${LINES}%" >> $GITHUB_STEP_SUMMARY
+            echo "Statements: ${STATEMENTS}%" >> $GITHUB_STEP_SUMMARY
+            echo "Functions:  ${FUNCTIONS}%" >> $GITHUB_STEP_SUMMARY
+            echo "Branches:   ${BRANCHES}%" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ No coverage data found" >> $GITHUB_STEP_SUMMARY
           fi
