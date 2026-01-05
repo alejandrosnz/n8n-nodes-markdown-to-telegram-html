@@ -48,7 +48,7 @@ jobs:
           fi
 
       - name: Run tests
-        run: npm test -- --coverage
+        run: npm test -- --coverage --coverageReporters=text --coverageReporters=json-summary
 
       - name: Run build
         run: npm run build
