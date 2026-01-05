@@ -49,7 +49,7 @@ jobs:
 
       - name: Run tests
         run: |
-          npm test -- --coverage --coverageReporters=text --coverageReporters=json-summary 2>&1 | tee test-results.txt
+          npm test -- --coverage --coverageReporters=text --coverageReporters=json-summary --json --outputFile=test-results.json 2>&1 | tee test-output.txt
           exit ${PIPESTATUS[0]}
 
       - name: Run build
@@ -64,7 +64,41 @@ jobs:
           echo "## ✅ Test Results - Node ${NODE_VERSION}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
-          # Extract test results from Jest output if available
+          # Show test results by file from Jest JSON output
+          if [ -f test-results.json ]; then
+            echo "### 🧪 Tests by File" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            node << 'EOF' >> $GITHUB_STEP_SUMMARY
+          const results = require('./test-results.json');
+          
+          if (results.testResults && results.testResults.length > 0) {
+            let totalTests = 0;
+            let totalPassed = 0;
+            
+            results.testResults.forEach(file => {
+              const fileName = file.name.split('/').pop();
+              const passed = file.numPassingTests;
+              const failed = file.numFailingTests;
+              const pending = file.numPendingTests;
+              const total = passed + failed + pending;
+              
+              totalTests += total;
+              totalPassed += passed;
+              
+              const status = failed > 0 ? '❌' : '✅';
+              console.log(`- ${status} **${fileName}**: ${passed}/${total} passed`);
+            });
+            
+            console.log('');
+            console.log(`**Total: ${totalPassed}/${totalTests} tests passed**`);
+          }
+          EOF
+            
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Show coverage
           if [ -f coverage/coverage-summary.json ]; then
             echo "### 📊 Coverage" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
@@ -76,20 +110,9 @@ jobs:
             BRANCHES=$(node -pe "require('./coverage/coverage-summary.json').total.branches.pct")
             
             echo "| Metric | Coverage |" >> $GITHUB_STEP_SUMMARY
-            echo "|--------|----------|" >> $GITHUB_STEP_SUMMARY
+            echo "| ------ | -------- |" >> $GITHUB_STEP_SUMMARY
             echo "| Lines | ${LINES}% |" >> $GITHUB_STEP_SUMMARY
             echo "| Statements | ${STATEMENTS}% |" >> $GITHUB_STEP_SUMMARY
             echo "| Functions | ${FUNCTIONS}% |" >> $GITHUB_STEP_SUMMARY
             echo "| Branches | ${BRANCHES}% |" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-          fi
-          
-          # Try to extract test count from jest output
-          if [ -f test-results.txt ]; then
-            TESTS_PASSED=$(grep -oP '\d+(?= passed)' test-results.txt | head -1 || echo "?")
-            TESTS_TOTAL=$(grep -oP '\d+(?= total)' test-results.txt | head -1 || echo "?")
-            echo "### 🧪 Tests" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "**Passed:** ${TESTS_PASSED} / ${TESTS_TOTAL}" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
           fi
