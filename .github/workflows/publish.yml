@@ -83,6 +83,13 @@ jobs:
             npm install
           fi
 
+      - name: Run tests
+        run: |
+          echo "🧪 Running tests before release..."
+          npm run lint
+          npm test
+          echo "✅ All tests passed!"
+
       - name: Configure git
         run: |
           git config user.name "github-actions[bot]"
@@ -250,19 +257,24 @@ jobs:
             VERSION="${{ steps.verify.outputs.FINAL_VERSION }}"
             PACKAGE_NAME=$(node -p 'require("./package.json").name')
             
-            echo "# ✅ Release v${VERSION} Published!" >> $GITHUB_STEP_SUMMARY
+            echo "# 🎉 Release v${VERSION} Published!" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "**Version:** $VERSION" >> $GITHUB_STEP_SUMMARY
+            echo "| | |" >> $GITHUB_STEP_SUMMARY
+            echo "| --- | --- |" >> $GITHUB_STEP_SUMMARY
+            echo "| 📦 Package | \`${PACKAGE_NAME}\` |" >> $GITHUB_STEP_SUMMARY
+            echo "| 🏷️ Version | \`${VERSION}\` |" >> $GITHUB_STEP_SUMMARY
             if [ -n "$CUSTOM_VERSION" ]; then
-              echo "**Custom version:** $CUSTOM_VERSION" >> $GITHUB_STEP_SUMMARY
+              echo "| 🎯 Type | Custom version |" >> $GITHUB_STEP_SUMMARY
             else
-              echo "**Release type:** ${{ github.event.inputs.release_type }}" >> $GITHUB_STEP_SUMMARY
+              echo "| 🎯 Type | \`${{ github.event.inputs.release_type }}\` |" >> $GITHUB_STEP_SUMMARY
             fi
-            echo "**Branch:** ${{ github.event.inputs.branch }}" >> $GITHUB_STEP_SUMMARY
+            echo "| 🌿 Branch | \`${{ github.event.inputs.branch }}\` |" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "### 📦 Links" >> $GITHUB_STEP_SUMMARY
-            echo "- **npm:** https://www.npmjs.com/package/${PACKAGE_NAME}/v/${VERSION}" >> $GITHUB_STEP_SUMMARY
-            echo "- **GitHub Release:** https://github.com/${{ github.repository }}/releases/tag/${VERSION}" >> $GITHUB_STEP_SUMMARY
+            echo "### 🔗 Links" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "- 📦 [View on npm](https://www.npmjs.com/package/${PACKAGE_NAME}/v/${VERSION})" >> $GITHUB_STEP_SUMMARY
+            echo "- 🏷️ [GitHub Release](https://github.com/${{ github.repository }}/releases/tag/${VERSION})" >> $GITHUB_STEP_SUMMARY
+            echo "- 📝 [Compare changes](https://github.com/${{ github.repository }}/compare/${{ steps.version.outputs.CURRENT_VERSION }}...${VERSION})" >> $GITHUB_STEP_SUMMARY
             
           else
             echo "# ❌ Release Failed" >> $GITHUB_STEP_SUMMARY

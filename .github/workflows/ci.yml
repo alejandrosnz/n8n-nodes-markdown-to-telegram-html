@@ -13,6 +13,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         node-version: [20.19, 22.x, 24.x]
 
@@ -77,6 +78,9 @@ jobs:
             let totalPassed = 0;
             let totalFailed = 0;
             
+            console.log('| File | Tests | Status |');
+            console.log('| ---- | ----- | ------ |');
+            
             results.testResults.forEach(file => {
               const fileName = file.name.split('/').pop();
               const assertionResults = file.assertionResults || [];
@@ -91,8 +95,8 @@ jobs:
                 totalPassed += passed;
                 totalFailed += failed;
                 
-                const status = failed > 0 ? '❌' : '✅';
-                console.log(`- ${status} **${fileName}**: ${passed}/${total} passed`);
+                const status = failed > 0 ? '❌ Failed' : '✅ Passed';
+                console.log(`| ${fileName} | ${passed}/${total} | ${status} |`);
               }
             });
             
@@ -100,7 +104,7 @@ jobs:
             if (totalFailed > 0) {
               console.log(`**Total: ${totalPassed}/${totalTests} tests passed, ${totalFailed} failed**`);
             } else {
-              console.log(`**Total: ${totalPassed}/${totalTests} tests passed**`);
+              console.log(`**Total: ${totalPassed}/${totalTests} tests passed ✅**`);
             }
           }
           EOF
