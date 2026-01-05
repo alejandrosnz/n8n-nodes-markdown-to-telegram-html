@@ -44,8 +44,31 @@ This directory contains the GitHub Actions workflows for the n8n-nodes-markdown-
 6. Verifies the release
 
 **Secrets required**:
-- `NPM_TOKEN`: npm authentication token for publishing
-- `GITHUB_TOKEN`: GitHub token for repository access (automatically provided)
+
+#### NPM_TOKEN
+npm authentication token for publishing packages.
+
+**How to obtain**:
+1. Go to [npmjs.com](https://www.npmjs.com/)
+2. Log in to your account
+3. Go to "Access Tokens" in your account settings
+4. Click "Generate New Token"
+5. Choose "Automation" or "Publish" type
+6. Copy the generated token
+
+**How to set in repository**:
+1. Go to your GitHub repository
+2. Click "Settings" tab
+3. In the left sidebar, click "Secrets and variables" → "Actions"
+4. Click "New repository secret"
+5. Name: `NPM_TOKEN`
+6. Value: Paste your npm token
+7. Click "Add secret"
+
+#### GITHUB_TOKEN
+GitHub token for repository access (automatically provided by GitHub Actions).
+
+**No manual setup required** - This is automatically available in workflows.
 
 **Usage**:
 1. Go to GitHub Actions tab
