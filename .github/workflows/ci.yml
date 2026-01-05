@@ -75,23 +75,33 @@ jobs:
           if (results.testResults && results.testResults.length > 0) {
             let totalTests = 0;
             let totalPassed = 0;
+            let totalFailed = 0;
             
             results.testResults.forEach(file => {
               const fileName = file.name.split('/').pop();
-              const passed = file.numPassingTests;
-              const failed = file.numFailingTests;
-              const pending = file.numPendingTests;
-              const total = passed + failed + pending;
+              const assertionResults = file.assertionResults || [];
               
-              totalTests += total;
-              totalPassed += passed;
+              const passed = assertionResults.filter(t => t.status === 'passed').length;
+              const failed = assertionResults.filter(t => t.status === 'failed').length;
+              const pending = assertionResults.filter(t => t.status === 'pending' || t.status === 'skipped').length;
+              const total = assertionResults.length;
               
-              const status = failed > 0 ? '❌' : '✅';
-              console.log(`- ${status} **${fileName}**: ${passed}/${total} passed`);
+              if (total > 0) {
+                totalTests += total;
+                totalPassed += passed;
+                totalFailed += failed;
+                
+                const status = failed > 0 ? '❌' : '✅';
+                console.log(`- ${status} **${fileName}**: ${passed}/${total} passed`);
+              }
             });
             
             console.log('');
-            console.log(`**Total: ${totalPassed}/${totalTests} tests passed**`);
+            if (totalFailed > 0) {
+              console.log(`**Total: ${totalPassed}/${totalTests} tests passed, ${totalFailed} failed**`);
+            } else {
+              console.log(`**Total: ${totalPassed}/${totalTests} tests passed**`);
+            }
           }
           EOF
             
