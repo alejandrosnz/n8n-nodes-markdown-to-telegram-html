@@ -13,11 +13,13 @@ This directory contains the GitHub Actions workflows for the n8n-nodes-markdown-
 - Pushes to `master` branch
 
 **What it does**:
-1. Sets up Node.js 22.x
+1. Sets up Node.js (20.19, 22.x, 24.x) - matching n8n compatibility
 2. Installs dependencies
 3. Runs ESLint for code linting
-4. Runs Jest test suite
-5. Builds the project
+4. Runs type checking (if available)
+5. Runs Jest test suite with coverage
+6. Builds the project
+7. Generates coverage summary in job output
 
 **Secrets required**: None
 
@@ -36,12 +38,15 @@ This directory contains the GitHub Actions workflows for the n8n-nodes-markdown-
 - `dry_run` (boolean, optional, default: false): Test mode without publishing.
 
 **What it does**:
-1. Checks out the specified branch
-2. Calculates next version (auto or custom)
-3. Manually bumps version for minor/major/custom releases
+1. Checks out the specified branch and verifies working directory is clean
+2. Validates that the target version doesn't already exist on npm
+3. Calculates next version (auto or custom)
 4. Builds the project
-5. Runs `n8n-node release` to create changelog, tag, and publish to npm
-6. Verifies the release
+5. Runs `npm run release` with the appropriate version argument
+   - This uses release-it to: update package.json, generate changelog from commits, create git tag, commit changes, push to GitHub, and publish to npm
+6. Verifies the release and generates summary
+
+**Note on versioning**: The workflow passes the version/release type directly to release-it (via `npm run release`), which handles all version bumping, tagging, and changelog generation in a single atomic operation. This prevents double-bumping issues.
 
 **Secrets required**:
 
@@ -81,12 +86,46 @@ GitHub token for repository access (automatically provided by GitHub Actions).
 5. Click "Run workflow"
 
 **Examples**:
-- Patch release: Leave defaults
-- Minor release: Set `release_type` to 'minor'
-- Custom version: Set `custom_version` to '2.0.0'
+- Patch release (1.0.7 → 1.0.8): Leave defaults
+- Minor release (1.0.7 → 1.1.0): Set `release_type` to 'minor'
+- Major release (1.0.7 → 2.0.0): Set `release_type` to 'major'
+- Custom version: Set `custom_version` to '2.0.0' or '1.2.3-beta.1'
 - Dry run: Set `dry_run` to true
 
 **Notes**:
 - Custom versions must follow semver format (x.y.z or x.y.z-prerelease)
 - The workflow validates custom version format
 - Dry run mode tests everything without making changes
+- Working directory must be clean (no uncommitted changes)
+
+## Troubleshooting
+
+### Release fails with "version already exists on npm"
+
+**Cause**: The version you're trying to publish already exists on npm.
+
+**Solutions**:
+- Check existing versions: `npm view <package-name> versions`
+- Use `custom_version` input to specify the next available version
+- If you need to republish the same version, you must first unpublish it (not recommended)
+
+### "NPM_TOKEN not found" error
+
+**Cause**: The NPM_TOKEN secret is not configured or has expired.
+
+**Solutions**:
+- Verify the token exists in repository Settings → Secrets and variables → Actions
+- Generate a new token on npmjs.com if the old one expired
+- Ensure the token has "Automation" or "Publish" permissions
+
+### Tests fail in CI but pass locally
+
+**Possible causes**:
+- Different Node.js versions (CI tests on 20.19, 22.x, and 24.x)
+- Missing dependencies (check if all dev dependencies are in package.json)
+- Environment-specific issues
+
+**Solutions**:
+- Test locally with the same Node version: `nvm use 20.19` or `nvm use 22`
+- Run `npm ci` instead of `npm install` to match CI behavior
+- Check CI logs for specific error messages

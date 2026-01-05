@@ -34,6 +34,7 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -47,6 +48,16 @@ jobs:
           git pull origin ${{ github.event.inputs.branch }}
           CURRENT_VERSION=$(node -p 'require("./package.json").version')
           echo "📦 Current version: $CURRENT_VERSION"
+
+      - name: Check working directory is clean
+        run: |
+          if [[ -n $(git status -s) ]]; then
+            echo "❌ Error: Working directory is not clean"
+            echo ""
+            git status
+            exit 1
+          fi
+          echo "✅ Working directory is clean"
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -84,10 +95,11 @@ jobs:
         id: version
         run: |
           CUSTOM_VERSION="${{ github.event.inputs.custom_version }}"
+          CURRENT=$(node -p 'require("./package.json").version')
           
           if [ -n "$CUSTOM_VERSION" ]; then
             # Validate custom version format (basic semver check)
-            if ! echo "$CUSTOM_VERSION" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.-]+)?$' > /dev/null; then
+            if ! echo "$CUSTOM_VERSION" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.-]+)?(\+[a-zA-Z0-9.-]+)?$' > /dev/null; then
               echo "❌ Invalid version format: $CUSTOM_VERSION"
               echo "Expected format: x.y.z or x.y.z-prerelease"
               exit 1
@@ -97,52 +109,36 @@ jobs:
             RELEASE_TYPE="custom"
           else
             RELEASE_TYPE="${{ github.event.inputs.release_type }}"
-            CURRENT=$(node -p 'require("./package.json").version')
             
-            # Calculate next version based on release_type
-            if [ "$RELEASE_TYPE" = "major" ]; then
-              NEXT=$(node -p "const v = require('./package.json').version.split('.'); [parseInt(v[0])+1, 0, 0].join('.')")
-            elif [ "$RELEASE_TYPE" = "minor" ]; then
-              NEXT=$(node -p "const v = require('./package.json').version.split('.'); [v[0], parseInt(v[1])+1, 0].join('.')")
-            else
-              NEXT=$(node -p "const v = require('./package.json').version.split('.'); [v[0], v[1], parseInt(v[2])+1].join('.')")
-            fi
-            
-            NEXT_VERSION="$NEXT"
+            # Install semver for proper version calculation
+            npm install -g semver
+            NEXT_VERSION=$(semver -i $RELEASE_TYPE $CURRENT)
           fi
           
-          echo "CURRENT_VERSION=$(node -p 'require("./package.json").version')" >> $GITHUB_OUTPUT
+          echo "CURRENT_VERSION=$CURRENT" >> $GITHUB_OUTPUT
           echo "NEXT_VERSION=$NEXT_VERSION" >> $GITHUB_OUTPUT
           echo "RELEASE_TYPE=$RELEASE_TYPE" >> $GITHUB_OUTPUT
           echo ""
           echo "📦 Release plan:"
           echo "   Type: $RELEASE_TYPE"
-          echo "   Current: $(node -p 'require("./package.json").version')"
+          echo "   Current: $CURRENT"
           echo "   Next: $NEXT_VERSION"
 
-      - name: Manual version bump
-        if: ${{ github.event.inputs.custom_version != '' || github.event.inputs.release_type != 'patch' }}
+      - name: Check version doesn't exist on npm
+        if: ${{ github.event.inputs.dry_run != 'true' }}
         run: |
-          RELEASE_TYPE="${{ steps.version.outputs.RELEASE_TYPE }}"
-          CUSTOM_VERSION="${{ github.event.inputs.custom_version }}"
+          PACKAGE_NAME=$(node -p 'require("./package.json").name')
+          NEXT_VERSION="${{ steps.version.outputs.NEXT_VERSION }}"
           
-          if [ -n "$CUSTOM_VERSION" ]; then
-            TARGET_VERSION="$CUSTOM_VERSION"
-            echo "Setting exact version to: $TARGET_VERSION"
-          else
-            TARGET_VERSION="${{ steps.version.outputs.NEXT_VERSION }}"
-            echo "Pre-bumping version for $RELEASE_TYPE release..."
+          echo "Checking if version $NEXT_VERSION exists on npm..."
+          
+          if npm view ${PACKAGE_NAME}@${NEXT_VERSION} version 2>/dev/null; then
+            echo "❌ Error: Version ${NEXT_VERSION} already exists on npm"
+            echo "Please choose a different version or use a custom version."
+            exit 1
           fi
           
-          npm version $TARGET_VERSION --no-git-tag-version
-          
-          NEW_VERSION=$(node -p 'require("./package.json").version')
-          echo "✅ Version updated to: $NEW_VERSION"
-          
-          # Commit the version bump
-          git add package.json package-lock.json 2>/dev/null || git add package.json
-          git commit -m "chore: bump version to $NEW_VERSION"
-          echo "✅ Version bump committed"
+          echo "✅ Version ${NEXT_VERSION} is available"
 
       - name: Dry-run release
         if: ${{ github.event.inputs.dry_run == 'true' }}
@@ -162,12 +158,10 @@ jobs:
           echo ""
           echo "✅ Dry-run validation completed!"
           echo "No changes were made to the repository or npm."
-          
-          # Revert any version changes
-          git checkout -- package.json package-lock.json 2>/dev/null || git checkout -- package.json
 
       - name: Run release
         if: ${{ github.event.inputs.dry_run != 'true' }}
+        id: release
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -179,17 +173,19 @@ jobs:
           echo "Current version in package.json: $CURRENT_VERSION"
           echo ""
           
-          # Build and prepare for release
+          # Build the project
           npm run build || echo "Build step not found or failed"
           
-          # Determine release command
+          # Run release-it with the appropriate version
           CUSTOM_VERSION="${{ github.event.inputs.custom_version }}"
+          RELEASE_TYPE="${{ github.event.inputs.release_type }}"
+          
           if [ -n "$CUSTOM_VERSION" ]; then
-            echo "Using custom version: $CUSTOM_VERSION"
-            # Use --no-increment to prevent release-it from bumping the version
-            npm run release -- --no-increment --version="$CUSTOM_VERSION"
+            echo "📌 Using custom version: $CUSTOM_VERSION"
+            npm run release -- "$CUSTOM_VERSION"
           else
-            npm run release
+            echo "📌 Using release type: $RELEASE_TYPE"
+            npm run release -- "$RELEASE_TYPE"
           fi
           
           echo ""
@@ -226,11 +222,18 @@ jobs:
         run: |
           DRY_RUN="${{ github.event.inputs.dry_run }}"
           CUSTOM_VERSION="${{ github.event.inputs.custom_version }}"
+          JOB_STATUS="${{ job.status }}"
           
           if [ "$DRY_RUN" = "true" ]; then
             echo "# 🧪 Dry Run Complete" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "✅ All checks passed!" >> $GITHUB_STEP_SUMMARY
+            
+            if [ "$JOB_STATUS" = "success" ]; then
+              echo "✅ All checks passed!" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "❌ Validation failed - see logs above" >> $GITHUB_STEP_SUMMARY
+            fi
+            
             echo "" >> $GITHUB_STEP_SUMMARY
             if [ -n "$CUSTOM_VERSION" ]; then
               echo "**Custom version:** $CUSTOM_VERSION" >> $GITHUB_STEP_SUMMARY
@@ -242,7 +245,8 @@ jobs:
             echo "**Branch:** ${{ github.event.inputs.branch }}" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "⚠️ No changes were made" >> $GITHUB_STEP_SUMMARY
-          elif [ "${{ job.status }}" = "success" ]; then
+            
+          elif [ "$JOB_STATUS" = "success" ]; then
             VERSION="${{ steps.verify.outputs.FINAL_VERSION }}"
             PACKAGE_NAME=$(node -p 'require("./package.json").name')
             
@@ -259,4 +263,20 @@ jobs:
             echo "### 📦 Links" >> $GITHUB_STEP_SUMMARY
             echo "- **npm:** https://www.npmjs.com/package/${PACKAGE_NAME}/v/${VERSION}" >> $GITHUB_STEP_SUMMARY
             echo "- **GitHub Release:** https://github.com/${{ github.repository }}/releases/tag/${VERSION}" >> $GITHUB_STEP_SUMMARY
+            
+          else
+            echo "# ❌ Release Failed" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Status:** Failed" >> $GITHUB_STEP_SUMMARY
+            if [ -n "$CUSTOM_VERSION" ]; then
+              echo "**Attempted version:** $CUSTOM_VERSION" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "**Release type:** ${{ github.event.inputs.release_type }}" >> $GITHUB_STEP_SUMMARY
+            fi
+            echo "**Current version:** ${{ steps.version.outputs.CURRENT_VERSION }}" >> $GITHUB_STEP_SUMMARY
+            echo "**Branch:** ${{ github.event.inputs.branch }}" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Check the workflow logs above for details." >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "⚠️ No changes were published to npm" >> $GITHUB_STEP_SUMMARY
           fi

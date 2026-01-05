@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node-version: [22.x]
+        node-version: [20.19, 22.x, 24.x]
 
     steps:
       - name: Checkout repo
@@ -39,8 +39,37 @@ jobs:
       - name: Run linter
         run: npm run lint
 
+      - name: Type check
+        run: |
+          if grep -q '"type-check"' package.json; then
+            npm run type-check
+          else
+            echo "⏭️ No type-check script found, skipping"
+          fi
+
       - name: Run tests
-        run: npm test
+        run: npm test -- --coverage
 
       - name: Run build
         run: npm run build
+
+      - name: Test Summary
+        if: always()
+        run: |
+          echo "## Test Results - Node ${{ matrix.node-version }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ -f coverage/coverage-summary.json ]; then
+            echo "### Coverage" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            node -p "
+              const coverage = require('./coverage/coverage-summary.json');
+              const total = coverage.total;
+              'Lines:      ' + total.lines.pct + '%\n' +
+              'Statements: ' + total.statements.pct + '%\n' +
+              'Functions:  ' + total.functions.pct + '%\n' +
+              'Branches:   ' + total.branches.pct + '%'
+            " >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          fi
